@@ -15,7 +15,7 @@ def boxplot():
 import plotly.graph_objects as go
 
 # df taken in should be from overview_by_month.csv
-def get_overview_by_month_boxplot_figure(df, start_date, end_date):
+def get_overview_by_month_boxplot_figure(df, start_date, end_date, statistic_dropdown_value):
     fig = go.Figure()
     for index, row in df.iterrows():
         if get_months_from_date(row['month']) < get_months_from_date(start_date) or get_months_from_date(row['month']) > get_months_from_date(end_date):

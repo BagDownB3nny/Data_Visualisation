@@ -42,14 +42,13 @@ def get_months_from_date(date):
 def filter_df_by_date(start_date, end_date, df):
     df = df[df['month'].apply(get_months_from_date) >= get_months_from_date(start_date)]
     df = df[df['month'].apply(get_months_from_date) <= get_months_from_date(end_date)]
-    
     return df
 
 
 # groups data by town, and aggregates resale_price_median
 # input: df grouped by town, month
-def get_resale_price_median_by_town(df):
-    df = df.groupby('town').agg({'resale_price_median': 'mean'}).reset_index()
+def get_statistics_median_by_town(df):
+    df = df.groupby('town').agg({'resale_price_median': 'median', 'price_per_sqm_median': 'median'}).reset_index()
     return df
 
 # create a new table with the following columns: town, month, flat_type, storey_range, 

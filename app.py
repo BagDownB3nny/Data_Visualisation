@@ -8,7 +8,7 @@ from dash.dependencies import Input, Output
 import geopandas as gpd
 
 # Import functions
-from data_processing import add_towns_with_no_hdb_data, filter_df_by_date, group_table, get_resale_price_median_by_town
+from data_processing import add_towns_with_no_hdb_data, filter_df_by_date, group_table, get_statistics_median_by_town
 from data_retrieval import get_hdb_data, get_map_data, get_overview_by_month_data, get_overview_data_by_month_and_town_data
 
 # Import components
@@ -30,7 +30,7 @@ app = Dash(__name__)
 # App layout
 app.layout = html.Div([
     html.Div(children='My First App with Data'),
-    dcc.Dropdown(['Resale price', 'Price per sq ft'], 'Price per sq ft'),
+    dcc.Dropdown(['resale_price_median', 'price_per_sqm_median'], 'resale_price_median', id='statistic-dropdown'),
     dcc.Graph(id='map'),
     time_slider(),
     dash_table.DataTable(id='table', page_size=10),
@@ -45,30 +45,31 @@ app.layout = html.Div([
     Output('map', 'figure'),
     Output('table', 'data'),
     Output('boxplot', 'figure'),
-    Input('time-slider', 'value')
+    Input('time-slider', 'value'),
+    Input('statistic-dropdown', 'value')
 )
-def update_time_slider(value):
+def update_time_slider(time_slider_value, statistic_dropdown_value):
     def num_to_date(num):
         year = 1990 + (num // 12)
         month = num % 12 + 1
         return f'{year}-{month}'
-    start_date = num_to_date(value[0])
-    end_date = num_to_date(value[1])
+    start_date = num_to_date(time_slider_value[0])
+    end_date = num_to_date(time_slider_value[1])
     string_output = f"Showing data from between {start_date} and {end_date}"
 
 
-    new_overview_by_month_and_town = filter_df_by_date(num_to_date(value[0]), num_to_date(value[1]), overview_by_month_and_town)
+    new_overview_by_month_and_town = filter_df_by_date(start_date, end_date, overview_by_month_and_town)
     new_overview_by_month_and_town = add_towns_with_no_hdb_data(new_overview_by_month_and_town, geojson)
 
-    resale_price_median_by_town = get_resale_price_median_by_town(new_overview_by_month_and_town)
+    statistics_by_town = get_statistics_median_by_town(new_overview_by_month_and_town)
     
     # Create the choropleth figure and update geos
-    map_figure = px.choropleth(resale_price_median_by_town, geojson=geojson, color='resale_price_median',
+    map_figure = px.choropleth(statistics_by_town, geojson=geojson, color=statistic_dropdown_value,
                         locations='town', featureidkey='properties.PLN_AREA_N')
     map_figure.update_geos(fitbounds="locations", visible=False)
 
 
-    boxplots_figure = get_overview_by_month_boxplot_figure(overview_by_month, start_date, end_date)
+    boxplots_figure = get_overview_by_month_boxplot_figure(overview_by_month, start_date, end_date, statistic_dropdown_value)
 
     return string_output, map_figure, new_overview_by_month_and_town.to_dict('records'), boxplots_figure
 
