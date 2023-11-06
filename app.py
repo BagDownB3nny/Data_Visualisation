@@ -70,11 +70,15 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, map_click_da
                         locations='town', featureidkey='properties.PLN_AREA_N')
     map_figure.update_geos(fitbounds="locations", visible=False)
 
+
     if map_click_data is not None:
-       town_name = map_click_data['points'][0]['location']
+        town_name = map_click_data['points'][0]['location'].replace('/', '|').replace(' ', '_')
+        boxplots_df = pd.read_csv(f'./data/resale_price_data/processed_data/town_data/{town_name}_overview.csv')
+    else:
+        boxplots_df = overview_by_month
        
     
-    boxplots_figure = get_overview_by_month_boxplot_figure(overview_by_month, start_date, end_date, statistic_dropdown_value)
+    boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, start_date, end_date, statistic_dropdown_value)
 
     return string_output, map_figure, boxplots_figure
 
