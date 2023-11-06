@@ -33,7 +33,7 @@ app.layout = html.Div([
     dcc.Dropdown(['resale_price_median', 'price_per_sqm_median'], 'resale_price_median', id='statistic-dropdown'),
     dcc.Graph(id='map'),
     time_slider(),
-    dash_table.DataTable(id='table', page_size=10),
+    # dash_table.DataTable(id='table', page_size=10),
     html.Div(id='time-slider-output'),
     dcc.Graph(id='boxplot'),
     #table with 10 entries per page
@@ -43,12 +43,14 @@ app.layout = html.Div([
 @app.callback(
     Output('time-slider-output', 'children'),
     Output('map', 'figure'),
-    Output('table', 'data'),
+    # Output('table', 'data'),
     Output('boxplot', 'figure'),
     Input('time-slider', 'value'),
-    Input('statistic-dropdown', 'value')
+    Input('statistic-dropdown', 'value'),
+    [Input('map', 'clickData')]
 )
-def update_time_slider(time_slider_value, statistic_dropdown_value):
+def update_time_slider(time_slider_value, statistic_dropdown_value, map_click_data):
+
     def num_to_date(num):
         year = 1990 + (num // 12)
         month = num % 12 + 1
@@ -68,10 +70,13 @@ def update_time_slider(time_slider_value, statistic_dropdown_value):
                         locations='town', featureidkey='properties.PLN_AREA_N')
     map_figure.update_geos(fitbounds="locations", visible=False)
 
-
+    if map_click_data is not None:
+       town_name = map_click_data['points'][0]['location']
+       
+    
     boxplots_figure = get_overview_by_month_boxplot_figure(overview_by_month, start_date, end_date, statistic_dropdown_value)
 
-    return string_output, map_figure, new_overview_by_month_and_town.to_dict('records'), boxplots_figure
+    return string_output, map_figure, boxplots_figure
 
 # Run the app
 if __name__ == '__main__':
