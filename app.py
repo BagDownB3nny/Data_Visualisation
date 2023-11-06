@@ -9,11 +9,12 @@ import geopandas as gpd
 
 # Import functions
 from data_processing import add_towns_with_no_hdb_data, filter_df_by_date, group_table, get_statistics_median_by_town
-from data_retrieval import get_hdb_data, get_map_data, get_overview_by_month_data, get_overview_data_by_month_and_town_data
+from data_retrieval import get_detailed_overview_data, get_map_data, get_overview_by_month_data, get_overview_data_by_month_and_town_data
 
 # Import components
 from components.time_slider import time_slider
 from components.boxplot import boxplot, get_overview_by_month_boxplot_figure
+from components.filter import filter, storey_range_options, flat_type_options
 
 # Load the GeoJSON file
 geojson = get_map_data()
@@ -33,10 +34,10 @@ app.layout = html.Div([
     dcc.Dropdown(['resale_price_median', 'price_per_sqm_median'], 'resale_price_median', id='statistic-dropdown'),
     dcc.Graph(id='map'),
     time_slider(),
+    filter(),
     # dash_table.DataTable(id='table', page_size=10),
     html.Div(id='time-slider-output'),
     dcc.Graph(id='boxplot'),
-    #table with 10 entries per page
 ])
 
 # Callbacks
@@ -47,9 +48,11 @@ app.layout = html.Div([
     Output('boxplot', 'figure'),
     Input('time-slider', 'value'),
     Input('statistic-dropdown', 'value'),
-    [Input('map', 'clickData')]
+    [Input('map', 'clickData')],
+    Input('storey-range-filter', 'value'),
+    Input('flat-type-filter', 'value'),
 )
-def update_time_slider(time_slider_value, statistic_dropdown_value, map_click_data):
+def update_time_slider(time_slider_value, statistic_dropdown_value, map_click_data, storey_range_filter_value, flat_type_filter_value):
 
     def num_to_date(num):
         year = 1990 + (num // 12)
@@ -59,11 +62,20 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, map_click_da
     end_date = num_to_date(time_slider_value[1])
     string_output = f"Showing data from between {start_date} and {end_date}"
 
+    if storey_range_filter_value == storey_range_options and flat_type_filter_value == flat_type_options:
+        map_df = overview_by_month_and_town
+    else:
+        map_df = get_detailed_overview_data()
+        map_df = group_table(map_df)
+        map_df = filter_df_by_date(start_date, end_date, map_df)
+        map_df = add_towns_with_no_hdb_data(overview_by_month_and_town, geojson)
+        map_df = map_df[map_df['storey_range'].isin(storey_range_filter_value)]
+        map_df = map_df[map_df['flat_type'].isin(flat_type_filter_value)]
 
-    new_overview_by_month_and_town = filter_df_by_date(start_date, end_date, overview_by_month_and_town)
-    new_overview_by_month_and_town = add_towns_with_no_hdb_data(new_overview_by_month_and_town, geojson)
+    map_df = filter_df_by_date(start_date, end_date, map_df)
+    map_df = add_towns_with_no_hdb_data(new_overview_by_month_and_town, geojson)
 
-    statistics_by_town = get_statistics_median_by_town(new_overview_by_month_and_town)
+    statistics_by_town = get_statistics_median_by_town(map_df)
     
     # Create the choropleth figure and update geos
     map_figure = px.choropleth(statistics_by_town, geojson=geojson, color=statistic_dropdown_value,
