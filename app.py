@@ -41,6 +41,7 @@ app.layout = html.Div([
     dcc.Graph(id='map'),
     time_slider(),
     html.Div(id='time-slider-output'),
+    html.Div(id='map-click-data'),
     dcc.Graph(id='boxplot'),
 ])
 
@@ -48,8 +49,9 @@ app.layout = html.Div([
 @app.callback(
     Output('secondary-filter-dropdown', 'options'),
     Output('secondary-filter-dropdown', 'value'),
-    Output('time-slider-output', 'children'),
     Output('map', 'figure'),
+    Output('time-slider-output', 'children'),
+    Output('map-click-data', 'children'),
     Output('boxplot', 'figure'),
     Input('time-slider', 'value'),
     Input('statistic-dropdown', 'value'),
@@ -99,22 +101,56 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filt
         return map_figure
 
     def generate_boxplot_figure():
-        if secondary_filter == 'All':
-            boxplots_df = overview_by_month
-        elif primary_filter == 'storey_range':
-            boxplots_df = get_storey_range_overview_by_month(secondary_filter)
-        elif primary_filter == 'flat_type':
-            boxplots_df = get_flat_type_overview_by_month(secondary_filter)
-        boxplots_df = filter_df_by_date(start_date, end_date, boxplots_df)
-        boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, statistic_dropdown_value)
-        return boxplots_figure
+
+        def generate_boxplot_figure_for_singapore(primary_filter, secondary_filter):
+            if secondary_filter == 'All':
+                boxplots_df = overview_by_month
+            elif primary_filter == 'storey_range':
+                boxplots_df = get_storey_range_overview_by_month(secondary_filter)
+            elif primary_filter == 'flat_type':
+                boxplots_df = get_flat_type_overview_by_month(secondary_filter)
+            boxplots_df = filter_df_by_date(start_date, end_date, boxplots_df)
+            boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, statistic_dropdown_value)
+            return boxplots_figure
+
+        def generate_boxplot_figure_for_town(town, primary_filter, secondary_filter):
+            town = town.replace('/', '|')
+            town = town.replace(' ', '_')
+            town_folder = f'./data/resale_price_data/processed_data/town_data/{town}'
+            if secondary_filter == 'All':
+                filename = f'{town}_overview.csv'
+                fullpath = f'{town_folder}/{filename}'
+            else:
+                primary_filter = primary_filter.replace(' ', '_')
+                primary_filter_folder = f'{town}_{primary_filter}_data'
+                secondary_filter = secondary_filter.replace(' ', '_')
+                filename = f'{secondary_filter}_overview.csv'
+                fullpath = f'{town_folder}/{primary_filter_folder}/{filename}'
+
+            boxplots_df = pd.read_csv(fullpath)
+            boxplots_df = filter_df_by_date(start_date, end_date, boxplots_df)
+            boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, statistic_dropdown_value)
+            return boxplots_figure
+
+        if map_click_data == None:
+            return generate_boxplot_figure_for_singapore(primary_filter, secondary_filter)
+        else:
+            town = map_click_data['points'][0]['location']
+            return generate_boxplot_figure_for_town(town, primary_filter, secondary_filter)
+
+    def generate_town_string(map_click_data):
+        if map_click_data == None:
+            return 'Currently viewing data of Singapore'
+        else:
+            return f"Currently viewing data of {map_click_data['points'][0]['location']}"
 
     secondary_filter_options = get_secondary_filter_options(primary_filter)
     secondary_filter_value = get_secondary_filter_value(secondary_filter)
     map_figure = generate_map_figure()
+    town_string_output = generate_town_string(map_click_data)
     boxplots_figure = generate_boxplot_figure()
 
-    return secondary_filter_options, secondary_filter_value, string_output, map_figure, boxplots_figure
+    return secondary_filter_options, secondary_filter_value, map_figure, string_output, town_string_output, boxplots_figure
 
 # Run the app
 if __name__ == '__main__':

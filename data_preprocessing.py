@@ -1,6 +1,7 @@
 from data_retrieval import get_all_raw_hdb_data
 import pandas as pd
 import os
+import shutil
 
 def quantile_25(x):
         return x.quantile(0.25)
@@ -73,18 +74,51 @@ def create_overview_for_each_town():
         town = town.replace(' ', '_')
         group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_overview.csv', index=False)
 
-def create_detailed_overview_for_each_town():
+def create_storey_range_data_by_month_for_each_town():
 
-    df = create_new_overview(['town', 'month', 'storey_range', 'flat_type'])
+    df = create_new_overview(['town', 'month', 'storey_range'])
 
     # Group the data by 'town'
-    grouped = df.groupby('town')
+    grouped_by_town = df.groupby('town')
 
     # Create a new CSV for each town
-    for town, group in grouped:
+    for town, group in grouped_by_town:
         town = town.replace('/', '|')
         town = town.replace(' ', '_')
-        group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_detailed_overview.csv', index=False)
+
+        # create folder for each town
+        if not os.path.exists(f'./data/resale_price_data/processed_data/town_data/{town}_storey_range_data'):
+            os.makedirs(f'./data/resale_price_data/processed_data/town_data/{town}_storey_range_data')
+
+        # Group the data by 'storey_range'
+        grouped_by_storey_range = group.groupby('storey_range')
+
+        for storey_range, group in grouped_by_storey_range:
+            storey_range = storey_range.replace(' ', '_')
+            group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_storey_range_data/{storey_range}_overview.csv', index=False)
+
+def create_flat_type_data_by_month_for_each_town():
+
+    df = create_new_overview(['town', 'month', 'flat_type'])
+
+    # Group the data by 'town'
+    grouped_by_town = df.groupby('town')
+
+    # Create a new CSV for each town
+    for town, group in grouped_by_town:
+        town = town.replace('/', '|')
+        town = town.replace(' ', '_')
+
+        # create folder for each town
+        if not os.path.exists(f'./data/resale_price_data/processed_data/town_data/{town}_flat_type_data'):
+            os.makedirs(f'./data/resale_price_data/processed_data/town_data/{town}_flat_type_data')
+
+        # Group the data by 'storey_range'
+        grouped_by_flat_type = group.groupby('flat_type')
+
+        for flat_type, group in grouped_by_flat_type:
+            flat_type = flat_type.replace(' ', '_')
+            group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_flat_type_data/{flat_type}_overview.csv', index=False)
 
 def create_overviews_for_each_storey_range_by_month():
     df = create_new_overview(['month', 'storey_range'])
@@ -104,5 +138,24 @@ def create_overviews_for_each_flat_type_by_month():
         flat_type = flat_type.replace(' ', '_')
         group.to_csv(f'./data/resale_price_data/processed_data/flat_type_data/{flat_type}_overview.csv', index=False)
 
-create_overviews_for_each_flat_type_by_month()
-create_overviews_for_each_storey_range_by_month()
+def organise_town_data_into_folders_by_town_name():
+    source_dir = './data/resale_price_data/processed_data/town_data/'
+    csv_files = [f for f in os.listdir(source_dir) if f.endswith('.csv')]
+    town_names = [f.replace('_overview.csv', '') for f in csv_files]
+
+    # create folders for each town
+    for town_name in town_names:
+        if not os.path.exists(f'./data/resale_price_data/processed_data/town_data/{town_name}'):
+            os.makedirs(f'./data/resale_price_data/processed_data/town_data/{town_name}')
+
+    # move overview.csv into the folder
+    for town_name in town_names:
+        shutil.move(f'./data/resale_price_data/processed_data/town_data/{town_name}_overview.csv', f'./data/resale_price_data/processed_data/town_data/{town_name}/{town_name}_overview.csv')
+
+    # move storey_range_data folder into the folder
+    for town_name in town_names:
+        shutil.move(f'./data/resale_price_data/processed_data/town_data/{town_name}_storey_range_data', f'./data/resale_price_data/processed_data/town_data/{town_name}/{town_name}_storey_range_data')
+
+    # move flat_type_data folder into the folder
+    for town_name in town_names:
+        shutil.move(f'./data/resale_price_data/processed_data/town_data/{town_name}_flat_type_data', f'./data/resale_price_data/processed_data/town_data/{town_name}/{town_name}_flat_type_data')
