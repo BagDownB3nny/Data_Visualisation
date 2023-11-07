@@ -66,7 +66,6 @@ def group_table(df):
     df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
                  'floor_area_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
     df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
-    df.to_csv('./data/resale_price_data/ProcessedResaleFlatPrices.csv')
     return df
 
 # group table by town, month

@@ -27,108 +27,82 @@ def change_storey_range_to_4_categories(df):
     df['storey_range'] = df['storey_range'].apply(change_storey_range)
     return df
 
-# create a new table with the following columns: town, month, flat_type, storey_range, 
-# resale_price_median, resale_price_min, resale_price_max, 25th percentile resale_price, 75th percentile resale_price
-# price_per_sqm_median, price_per_sqm_min, price_per_sqm_max, 25th percentile price_per_sqm, 75th percentile price_per_sqm
-def group_table_by_town_and_month_and_flat_type_and_storey_range(df):
-    df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
-    df = df.groupby(['town', 'month', 'flat_type', 'storey_range'])
-    df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
-                 'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
-    df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
-    return df
-
-# create a new table with the following columns: town, month 
-# resale_price_median, resale_price_min, resale_price_max, 25th percentile resale_price, 75th percentile resale_price
-# price_per_sqm_median, price_per_sqm_min, price_per_sqm_max, 25th percentile price_per_sqm, 75th percentile price_per_sqm
-def group_table_by_town_and_month(df):
-    df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
-    df = df.groupby(['town', 'month'])
-    df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
-                 'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
-    df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
-    return df
-
-# create a new table with the following columns: town, month
+# create a new table by grouping by input columns
+# aggregates columns to get the following columns:
 # resale_price_median, resale_price_min, resale_price_max, 25th percentile resale_price, 75th percentile resale_price
 # floor_area_sqm_median, floor_area_sqm_min, floor_area_sqm_max, 25th percentile floor_area_sqm, 75th percentile floor_area_sqm
-def create_overview_table():
+def create_new_overview(groupby_columns):
     df = get_all_raw_hdb_data()
     df = change_storey_range_to_4_categories(df)
     
     # add new column which is resale_price / floor_area_sqm
     df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
 
-    df = df.groupby(['town', 'month'])
+    df = df.groupby(groupby_columns)
     df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
                  'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
     df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
-    df.to_csv('./data/resale_price_data/processed_data/overview_by_month_and_town.csv')
+    return df
+
+def create_overview_by_month_and_town():
+    df = create_new_overview(['town', 'month'])
+    df.to_csv(f'./data/resale_price_data/processed_data/overview_by_month_and_town.csv')
 
 def create_overview_by_month():
-    df = get_all_raw_hdb_data()
-    df = change_storey_range_to_4_categories(df)
+    df = create_new_overview(['month'])
+    df.to_csv(f'./data/resale_price_data/processed_data/overview_by_month.csv')
 
-    # add new column which is resale_price / floor_area_sqm
-    df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
+def create_detailed_overview_by_month():
+    df = create_new_overview(['month', 'storey_range', 'flat_type'])
+    df.to_csv(f'./data/resale_price_data/processed_data/detailed_overview_by_month.csv')
 
-    df = df.groupby(['month'])
-    df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
-                 'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
-    df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
-    df.to_csv('./data/resale_price_data/processed_data/overview_by_month.csv')
+def create_detailed_overview_by_month_and_town():
+    df = create_new_overview(['town', 'month', 'storey_range', 'flat_type'])
+    df.to_csv(f'./data/resale_price_data/processed_data/detailed_overview_by_month_and_town.csv')
 
 def create_overview_for_each_town():
-    # Load the data
-    df = get_all_raw_hdb_data()
-    df = change_storey_range_to_4_categories(df)
 
-    df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
-    df = df.groupby(['town', 'month'])
-    df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
-                 'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
-    df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
+    df = create_new_overview(['town', 'month'])
 
     # Group the data by 'town'
     grouped = df.groupby('town')
 
     # Create a new CSV for each town
     for town, group in grouped:
-        if '/' in town:
-            town = town.replace('/', '|')
+        town = town.replace('/', '|')
         town = town.replace(' ', '_')
         group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_overview.csv', index=False)
 
 def create_detailed_overview_for_each_town():
 
-    # Load the data
-    df = get_all_raw_hdb_data()
-    df = change_storey_range_to_4_categories(df)
-
-    df['price_per_sqm'] = df['resale_price'] / df['floor_area_sqm']
-    df = df.groupby(['town', 'month', 'storey_range', 'flat_type'])
-    df = df.agg({'resale_price': ['median', 'min', 'max', quantile_25, quantile_75],
-                 'price_per_sqm': ['median', 'min', 'max', quantile_25, quantile_75]}).reset_index()
-    df.columns = ['_'.join(col).rstrip('_') for col in df.columns.values]
+    df = create_new_overview(['town', 'month', 'storey_range', 'flat_type'])
 
     # Group the data by 'town'
     grouped = df.groupby('town')
 
     # Create a new CSV for each town
     for town, group in grouped:
-        if '/' in town:
-            town = town.replace('/', '|')
+        town = town.replace('/', '|')
         town = town.replace(' ', '_')
         group.to_csv(f'./data/resale_price_data/processed_data/town_data/{town}_detailed_overview.csv', index=False)
 
-# def group_data_for_each_town_csv():
-#     # Create a new CSV for each town
-#     for filename in os.listdir('./data/resale_price_data/processed_data/town_data'):
-#         if not filename.endswith('detailed_overview.csv'):
-#             df = pd.read_csv(f'./data/resale_price_data/processed_data/town_data/{filename}')
-#             df = group_table_by_town_and_month(df)
-#             df.to_csv(f'./data/resale_price_data/processed_data/town_data/{filename}', index=False)
+def create_overviews_for_each_storey_range_by_month():
+    df = create_new_overview(['month', 'storey_range'])
 
-create_overview_for_each_town()
-create_detailed_overview_for_each_town()
-# group_data_for_each_town_csv()
+    grouped = df.groupby('storey_range')
+
+    for storey_range, group in grouped:
+        storey_range = storey_range.replace(' ', '_')
+        group.to_csv(f'./data/resale_price_data/processed_data/storey_range_data/{storey_range}_overview.csv', index=False)
+
+def create_overviews_for_each_flat_type_by_month():
+    df = create_new_overview(['month', 'flat_type'])
+    df['flat_type'] = df['flat_type'].apply(lambda x: x.replace('-', ' '))
+    grouped = df.groupby('flat_type')
+
+    for flat_type, group in grouped:
+        flat_type = flat_type.replace(' ', '_')
+        group.to_csv(f'./data/resale_price_data/processed_data/flat_type_data/{flat_type}_overview.csv', index=False)
+
+create_overviews_for_each_flat_type_by_month()
+create_overviews_for_each_storey_range_by_month()

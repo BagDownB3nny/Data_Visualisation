@@ -2,8 +2,8 @@
 from dash import Dash, html, dash_table, dcc
 
 # declare constants
-storey_range_options = ['2 ROOM', '3 ROOM', '4 ROOM', '5 ROOM', 'EXECUTIVE']
-flat_type_options = ['01 TO 03', '04 TO 06', '07 TO 09', '10 TO 12', '13 AND GREATER']
+flat_type_options = ['2 ROOM', '3 ROOM', '4 ROOM', '5 ROOM', 'EXECUTIVE', 'MULTI GENERATION']
+storey_range_options = ['very low', 'low', 'mid', 'high']
 
 def storey_range_filter():
     return dcc.Checklist(

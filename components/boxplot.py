@@ -15,14 +15,12 @@ def boxplot():
 import plotly.graph_objects as go
 
 # df taken in should be from overview_by_month.csv
-def get_overview_by_month_boxplot_figure(df, start_date, end_date, statistic_dropdown_value):
+def get_overview_by_month_boxplot_figure(df, statistic_dropdown_value):
 
     statistic_dropdown_value = statistic_dropdown_value.replace('_median', '')
 
     fig = go.Figure()
     for index, row in df.iterrows():
-        if get_months_from_date(row['month']) < get_months_from_date(start_date) or get_months_from_date(row['month']) > get_months_from_date(end_date):
-            continue
         fig.add_trace(go.Box(
             x=[row['month']],
             q1=[row[f'{statistic_dropdown_value}_quantile_25']],
