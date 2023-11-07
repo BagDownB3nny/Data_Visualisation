@@ -30,7 +30,7 @@ def get_map_data():
 
 def get_storey_range_overview_by_month(storey_range):
     storey_range = storey_range.replace(' ', '_')
-    return pd.read_csv(f'./data/resale_price_data/processed_data/flat_type_data/{storey_range}_overview.csv')
+    return pd.read_csv(f'./data/resale_price_data/processed_data/storey_range_data/{storey_range}_overview.csv')
 
 def get_flat_type_overview_by_month(room_type):
     room_type = room_type.replace(' ', '_')

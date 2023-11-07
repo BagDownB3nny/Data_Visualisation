@@ -61,19 +61,26 @@ app.layout = html.Div([
 )
 def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filter, secondary_filter, map_click_data):
 
-    def get_secondary_filter_options(primary_filter):
-        if primary_filter == 'storey_range':
-            return ['All', *storey_range_options]
-        elif primary_filter == 'flat_type':
-            return ['All', *flat_type_options]
-        else:
-            return ['All']
 
-    def get_secondary_filter_value(secondary_filter):
-        if secondary_filter == None:
-            return 'All'
-        else:
-            return secondary_filter
+    def get_secondary_filter_config(primary_filter, secondary_filter):
+
+        def get_secondary_filter_options(primary_filter, secondary_filter):
+            if primary_filter == 'storey_range':
+                return ['All', *storey_range_options]
+            elif primary_filter == 'flat_type':
+                return ['All', *flat_type_options]
+
+        def get_secondary_filter_value(secondary_filter):
+            if primary_filter == 'storey_range' and secondary_filter not in storey_range_options:
+                return 'All'
+            elif primary_filter == 'flat_type' and secondary_filter not in flat_type_options:
+                return 'All'
+            else:
+                return secondary_filter
+
+        secondary_filter_options = get_secondary_filter_options(primary_filter, secondary_filter)
+        secondary_filter_value = get_secondary_filter_value(secondary_filter)
+        return secondary_filter_options, secondary_filter_value
 
     def num_to_date(num):
         year = 1990 + (num // 12)
@@ -144,8 +151,7 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filt
         else:
             return f"Currently viewing data of {map_click_data['points'][0]['location']}"
 
-    secondary_filter_options = get_secondary_filter_options(primary_filter)
-    secondary_filter_value = get_secondary_filter_value(secondary_filter)
+    secondary_filter_options, secondary_filter_value = get_secondary_filter_config(primary_filter, secondary_filter)
     map_figure = generate_map_figure()
     town_string_output = generate_town_string(map_click_data)
     boxplots_figure = generate_boxplot_figure()
