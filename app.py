@@ -34,16 +34,28 @@ app = Dash(__name__)
 
 # App layout
 app.layout = html.Div([
-    html.Div(children='My First App with Data'),
+    html.Div(children='Singapore HDB Resale Price Visualisation'),
     dcc.Dropdown(['resale_price_median', 'price_per_sqm_median'], 'resale_price_median', id='statistic-dropdown'),
     dcc.Dropdown(options=['flat_type', 'storey_range'], value='flat_type', id='primary-filter-dropdown'),
     dcc.Dropdown(options=['All', *flat_type_options], value='All', id='secondary-filter-dropdown'),
-    dcc.Graph(id='map'),
+    # dcc.Graph(id='map'),
     time_slider(),
     html.Div(id='time-slider-output'),
     html.Div(id='map-click-data'),
-    dcc.Graph(id='boxplot'),
-])
+    # dcc.Graph(id='boxplot'),
+    html.Div([
+     html.Div(
+         dcc.Graph(id='map'),
+         style={'width': '50%'}
+     ),
+     html.Div(
+         dcc.Graph(id='boxplot'),
+         style={'width': '50%'}
+     )
+ ], style={'display': 'flex'}),
+    dcc.Graph(id='barchart'),
+], style={'width': '100%'})
+
 
 # Callbacks
 @app.callback(
@@ -53,6 +65,7 @@ app.layout = html.Div([
     Output('time-slider-output', 'children'),
     Output('map-click-data', 'children'),
     Output('boxplot', 'figure'),
+    Output('barchart', 'figure'),
     Input('time-slider', 'value'),
     Input('statistic-dropdown', 'value'),
     Input('primary-filter-dropdown', 'value'),
@@ -106,7 +119,25 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filt
                             locations='town', featureidkey='properties.PLN_AREA_N')
         map_figure.update_geos(fitbounds="locations", visible=False)
         return map_figure
+    
+    # Generate barchart figure
+    def generate_barchart_figure():
+        if secondary_filter == 'All':
+            map_df = overview_by_month_and_town
+        else:
+            map_df = detailed_overview_by_month_and_town
+            map_df = map_df[map_df[f'{primary_filter}'] == secondary_filter]
 
+        map_df = filter_df_by_date(start_date, end_date, map_df)
+        map_df = add_towns_with_no_hdb_data(map_df, geojson)
+        statistics_by_town = get_statistics_median_by_town(map_df)
+        
+        statistics_by_town = statistics_by_town.sort_values(by=statistic_dropdown_value, ascending=False)
+        statistics_by_town = statistics_by_town.dropna(subset=[statistic_dropdown_value])
+        barchart_figure = px.bar(statistics_by_town, x=statistic_dropdown_value, y='town', color='town', height=1000)
+        # barchart_figure = px.bar(statistics_by_town, x='town', y=statistic_dropdown_value, color='town')
+        return barchart_figure
+  
     def generate_boxplot_figure():
 
         def generate_boxplot_figure_for_singapore(primary_filter, secondary_filter):
@@ -155,8 +186,9 @@ def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filt
     map_figure = generate_map_figure()
     town_string_output = generate_town_string(map_click_data)
     boxplots_figure = generate_boxplot_figure()
+    barchart_figure = generate_barchart_figure()
 
-    return secondary_filter_options, secondary_filter_value, map_figure, string_output, town_string_output, boxplots_figure
+    return secondary_filter_options, secondary_filter_value, map_figure, string_output, town_string_output, boxplots_figure, barchart_figure
 
 # Run the app
 if __name__ == '__main__':
