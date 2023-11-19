@@ -3,9 +3,13 @@ from data_retrieval import get_all_hdb_data, get_map_data
 import pandas as pd
 from itertools import islice
 import plotly.express as px
+import numpy as np
+import plotly.graph_objects as go
+import json
 
 # Load data
-geojson = get_map_data()
+geodf = get_map_data()
+geojson = json.loads(geodf.to_json())
 df = get_all_hdb_data()
 # Get categories
 flat_types = sorted(pd.unique(df['flat_type']))
@@ -89,10 +93,38 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
     months_filter = pd.to_datetime(df['month']).between(pd.to_datetime(month_input[0]), pd.to_datetime(month_input[1]))
     filtered_df = df[flat_types_filter & storey_ranges_filter & months_filter]
 
-    # Create choropleth map
+    # Group filtered data by town
     filtered_df_by_town = filtered_df.groupby(by=['town'])[statistic_input].median().reset_index()
-    map_figure = px.choropleth(filtered_df_by_town, geojson=geojson, color=statistic_input,
-                        locations='town', featureidkey='properties.PLN_AREA_N')
+    # Create choropleth map for filtered data by town
+    map_figure = go.Figure()
+    map_figure.add_trace(go.Choropleth(
+        geojson=geojson,
+        locations=filtered_df_by_town['town'],
+        z=filtered_df_by_town[statistic_input],
+        featureidkey='properties.PLN_AREA_N', 
+        colorbar={'title': f'Median {statistic_input}'},
+        hovertemplate='<b>%{location}</b><br>' + '%{z}' + '<extra></extra>'       
+    ))
+
+    # Get unavailable data by town
+    all_towns = geodf['PLN_AREA_N']
+    available_towns = filtered_df_by_town['town'].unique()
+    unavailable_towns = np.setdiff1d(all_towns, available_towns, assume_unique=True)
+    df_all_towns = pd.concat([filtered_df_by_town, pd.DataFrame({'town': unavailable_towns})]).reset_index(drop=True)
+    unavailable_df_by_town = df_all_towns[df_all_towns.isna().any(axis=1)]
+    unavailable_df_by_town = unavailable_df_by_town.fillna(0)
+    # Add towns with no available data onto map
+    map_figure.add_trace(go.Choropleth(
+        geojson=geojson,
+        locations=unavailable_df_by_town['town'],
+        z=unavailable_df_by_town[statistic_input],
+        featureidkey='properties.PLN_AREA_N',
+        colorscale='Greys',
+        showscale=False,
+        hovertemplate='<b>%{location}</b><br>' + 'No Available Data' + '<extra></extra>',
+        hoverlabel={'bgcolor' : 'white'}       
+    ))
+
     map_figure.update_geos(fitbounds="locations", visible=False)
     map_figure.update_layout(coloraxis_colorbar={'title':f'Median {statistic_input}'})
 
