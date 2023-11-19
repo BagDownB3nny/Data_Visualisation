@@ -61,9 +61,19 @@ app.layout = html.Div([
     html.Div(
         id='output-div',
     ),
-    dcc.Graph(
-        id='map',
+    html.Div(
+        children=[
+            dcc.Graph(
+                id='map',
+                style={'flex':'2'}
+            ),
+            dcc.Graph(
+                id='barplot',
+                style={'flex':'1'}
+            )
+        ], style={'display':'flex'}
     ),
+
     dcc.Graph(
         id='boxplot',
     )
@@ -73,6 +83,7 @@ app.layout = html.Div([
     [
         Output(component_id='year-div', component_property='children'),   
         Output(component_id='map', component_property='figure'),
+        Output(component_id='barplot', component_property='figure'),
         Output(component_id='boxplot', component_property='figure')
     ],
     [
@@ -128,12 +139,21 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
     map_figure.update_geos(fitbounds="locations", visible=False)
     map_figure.update_layout(coloraxis_colorbar={'title':f'Median {statistic_input}'})
 
+    # Create bar chart for top/bottom towns
+    bar_figure = px.bar(
+        filtered_df_by_town.sort_values(by=statistic_input), 
+        x=statistic_input, 
+        y='town',
+        color=statistic_input
+    )
+    bar_figure.update_layout(coloraxis_showscale=False)
+
     # Create boxplot
     boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
     boxplot_figure.update_layout(xaxis_type='category')
     boxplot_figure.update_traces(boxmean=True)
 
-    return year_div, map_figure, boxplot_figure
+    return year_div, map_figure, bar_figure, boxplot_figure
 
 if __name__ == '__main__':
     app.run(debug=True)
