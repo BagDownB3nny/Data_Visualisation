@@ -1,195 +1,107 @@
-# Import packages
-from dash import Dash, html, dash_table, dcc
-import dash_leaflet as dl
+from dash import Dash, html, dcc, Input, Output, callback
+from data_retrieval import get_all_hdb_data, get_map_data
 import pandas as pd
+from itertools import islice
 import plotly.express as px
-import json
-from dash.dependencies import Input, Output
-import geopandas as gpd
 
-# Import functions
-from data_processing import add_towns_with_no_hdb_data, filter_df_by_date, group_table, get_statistics_median_by_town
-from data_retrieval import get_detailed_overview_by_month_and_town, get_map_data, get_overview_by_month_data, get_overview_data_by_month_and_town_data, get_detailed_overview_by_month_data, get_storey_range_overview_by_month, get_flat_type_overview_by_month
-
-# Import components
-from components.time_slider import time_slider
-from components.boxplot import boxplot, get_overview_by_month_boxplot_figure
-from components.filter import filter, storey_range_options, flat_type_options
-
-# Load the GeoJSON file
+# Load data
 geojson = get_map_data()
+df = get_all_hdb_data()
+# Get categories
+flat_types = sorted(pd.unique(df['flat_type']))
+storey_ranges = sorted(pd.unique(df['storey_range']))
+months = sorted(df['month'].unique())
+# Dict for years and corresponding index on range slider
+date_slider_marks = dict(islice(enumerate(pd.to_datetime(df['month'].unique()).year.astype('str')), None, None, 12)) 
 
-# Load the HDB resale data
-overview_by_month = get_overview_by_month_data()
-detailed_overview_by_month = get_detailed_overview_by_month_data()
-
-overview_by_month_and_town = get_overview_data_by_month_and_town_data()
-overview_by_month_and_town = add_towns_with_no_hdb_data(overview_by_month_and_town, geojson)
-
-detailed_overview_by_month_and_town = get_detailed_overview_by_month_and_town()
-overview_by_month_and_town = add_towns_with_no_hdb_data(detailed_overview_by_month_and_town, geojson)
-
-# Initialize the app
 app = Dash(__name__)
 
-# App layout
 app.layout = html.Div([
-    html.Div(children='Singapore HDB Resale Price Visualisation'),
-    dcc.Dropdown(['resale_price_median', 'price_per_sqm_median'], 'resale_price_median', id='statistic-dropdown'),
-    dcc.Dropdown(options=['flat_type', 'storey_range'], value='flat_type', id='primary-filter-dropdown'),
-    dcc.Dropdown(options=['All', *flat_type_options], value='All', id='secondary-filter-dropdown'),
-    # dcc.Graph(id='map'),
-    time_slider(),
-    html.Div(id='time-slider-output'),
-    html.Div(id='map-click-data'),
-    # dcc.Graph(id='boxplot'),
-    html.Div([
-     html.Div(
-         dcc.Graph(id='map'),
-         style={'width': '50%'}
-     ),
-     html.Div(
-         dcc.Graph(id='boxplot'),
-         style={'width': '50%'}
-     )
- ], style={'display': 'flex'}),
-    dcc.Graph(id='barchart'),
-], style={'width': '100%'})
+    dcc.RangeSlider(
+        allowCross=False,
+        id="date-slider-input",
+        min=0,
+        max=len(months)-1,
+        marks=date_slider_marks,
+        value=[0, len(months)-1],
+        step=1,
+    ),
+        html.Div(
+        id='year-div'
+    ),
+    html.Div(children='Statistic'),
+    dcc.Dropdown(
+        id='statistic-input',
+        options=[
+            {'label' : 'Resale Price per sqm', 'value' : 'resale_price_per_sqm'}, 
+            {'label' : 'Resale Price', 'value' : 'resale_price'}, 
+            {'label' : 'Floor Area', 'value' : 'floor_area_sqm'}, 
+        ],
+        value='resale_price_per_sqm'
+    ),
+    html.Div(children=[
+        html.Div(children='Flat Type'),
+        dcc.Checklist(
+            id='flat-type-input',
+            options=flat_types,
+            value=flat_types
+        ),
+        html.Div(children='Storey Range'),
+        dcc.Checklist(
+            id='storey-range-input',
+            options=storey_ranges,
+            value=storey_ranges
+        ),
+    ],
+    style={'display': 'flex'}),
+    html.Div(
+        id='output-div',
+    ),
+    dcc.Graph(
+        id='map',
+    ),
+    dcc.Graph(
+        id='boxplot',
+    )
+])
 
-
-# Callbacks
-@app.callback(
-    Output('secondary-filter-dropdown', 'options'),
-    Output('secondary-filter-dropdown', 'value'),
-    Output('map', 'figure'),
-    Output('time-slider-output', 'children'),
-    Output('map-click-data', 'children'),
-    Output('boxplot', 'figure'),
-    Output('barchart', 'figure'),
-    Input('time-slider', 'value'),
-    Input('statistic-dropdown', 'value'),
-    Input('primary-filter-dropdown', 'value'),
-    Input('secondary-filter-dropdown', 'value'),
-    [Input('map', 'clickData')],
+@callback(
+    [
+        Output(component_id='year-div', component_property='children'),   
+        Output(component_id='map', component_property='figure'),
+        Output(component_id='boxplot', component_property='figure')
+    ],
+    [
+        Input(component_id='statistic-input', component_property='value'),
+        Input(component_id='flat-type-input', component_property='value'),
+        Input(component_id='storey-range-input', component_property='value'),
+        Input(component_id='date-slider-input', component_property='value')
+    ]
 )
-def update_time_slider(time_slider_value, statistic_dropdown_value, primary_filter, secondary_filter, map_click_data):
-
-
-    def get_secondary_filter_config(primary_filter, secondary_filter):
-
-        def get_secondary_filter_options(primary_filter, secondary_filter):
-            if primary_filter == 'storey_range':
-                return ['All', *storey_range_options]
-            elif primary_filter == 'flat_type':
-                return ['All', *flat_type_options]
-
-        def get_secondary_filter_value(secondary_filter):
-            if primary_filter == 'storey_range' and secondary_filter not in storey_range_options:
-                return 'All'
-            elif primary_filter == 'flat_type' and secondary_filter not in flat_type_options:
-                return 'All'
-            else:
-                return secondary_filter
-
-        secondary_filter_options = get_secondary_filter_options(primary_filter, secondary_filter)
-        secondary_filter_value = get_secondary_filter_value(secondary_filter)
-        return secondary_filter_options, secondary_filter_value
-
-    def num_to_date(num):
-        year = 1990 + (num // 12)
-        month = num % 12 + 1
-        return f'{year}-{month}'
-    start_date = num_to_date(time_slider_value[0])
-    end_date = num_to_date(time_slider_value[1])
-    string_output = f"Showing data from between {start_date} and {end_date}"
-
-    def generate_map_figure():
-        if secondary_filter == 'All':
-            map_df = overview_by_month_and_town
-        else:
-            map_df = detailed_overview_by_month_and_town
-            map_df = map_df[map_df[f'{primary_filter}'] == secondary_filter]
-
-        map_df = filter_df_by_date(start_date, end_date, map_df)
-        map_df = add_towns_with_no_hdb_data(map_df, geojson)
-        statistics_by_town = get_statistics_median_by_town(map_df)
-        
-        # Create the choropleth figure and update geos
-        map_figure = px.choropleth(statistics_by_town, geojson=geojson, color=statistic_dropdown_value,
-                            locations='town', featureidkey='properties.PLN_AREA_N')
-        map_figure.update_geos(fitbounds="locations", visible=False)
-        return map_figure
+def update_output(statistic_input, flat_type_input, storey_range_input, date_slider_input):
+    # Selected start and end months in the format [YYYY-MM, YYYY-MM]
+    month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
+    year_div = f'{month_input[0]} - {month_input[1]}'
     
-    # Generate barchart figure
-    def generate_barchart_figure():
-        if secondary_filter == 'All':
-            map_df = overview_by_month_and_town
-        else:
-            map_df = detailed_overview_by_month_and_town
-            map_df = map_df[map_df[f'{primary_filter}'] == secondary_filter]
+    # Apply selected filters to dataset
+    flat_types_filter = df['flat_type'].isin(flat_type_input)
+    storey_ranges_filter = df['storey_range'].isin(storey_range_input)
+    months_filter = pd.to_datetime(df['month']).between(pd.to_datetime(month_input[0]), pd.to_datetime(month_input[1]))
+    filtered_df = df[flat_types_filter & storey_ranges_filter & months_filter]
 
-        map_df = filter_df_by_date(start_date, end_date, map_df)
-        map_df = add_towns_with_no_hdb_data(map_df, geojson)
-        statistics_by_town = get_statistics_median_by_town(map_df)
-        
-        statistics_by_town = statistics_by_town.sort_values(by=statistic_dropdown_value, ascending=False)
-        statistics_by_town = statistics_by_town.dropna(subset=[statistic_dropdown_value])
-        barchart_figure = px.bar(statistics_by_town, x=statistic_dropdown_value, y='town', color='town', height=1000)
-        # barchart_figure = px.bar(statistics_by_town, x='town', y=statistic_dropdown_value, color='town')
-        return barchart_figure
-  
-    def generate_boxplot_figure():
+    # Create choropleth map
+    filtered_df_by_town = filtered_df.groupby(by=['town'])[statistic_input].median().reset_index()
+    map_figure = px.choropleth(filtered_df_by_town, geojson=geojson, color=statistic_input,
+                        locations='town', featureidkey='properties.PLN_AREA_N')
+    map_figure.update_geos(fitbounds="locations", visible=False)
+    map_figure.update_layout(coloraxis_colorbar={'title':f'Median {statistic_input}'})
 
-        def generate_boxplot_figure_for_singapore(primary_filter, secondary_filter):
-            if secondary_filter == 'All':
-                boxplots_df = overview_by_month
-            elif primary_filter == 'storey_range':
-                boxplots_df = get_storey_range_overview_by_month(secondary_filter)
-            elif primary_filter == 'flat_type':
-                boxplots_df = get_flat_type_overview_by_month(secondary_filter)
-            boxplots_df = filter_df_by_date(start_date, end_date, boxplots_df)
-            boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, statistic_dropdown_value)
-            return boxplots_figure
+    # Create boxplot
+    boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
+    boxplot_figure.update_layout(xaxis_type='category')
+    boxplot_figure.update_traces(boxmean=True)
 
-        def generate_boxplot_figure_for_town(town, primary_filter, secondary_filter):
-            town = town.replace('/', '|')
-            town = town.replace(' ', '_')
-            town_folder = f'./data/resale_price_data/processed_data/town_data/{town}'
-            if secondary_filter == 'All':
-                filename = f'{town}_overview.csv'
-                fullpath = f'{town_folder}/{filename}'
-            else:
-                primary_filter = primary_filter.replace(' ', '_')
-                primary_filter_folder = f'{town}_{primary_filter}_data'
-                secondary_filter = secondary_filter.replace(' ', '_')
-                filename = f'{secondary_filter}_overview.csv'
-                fullpath = f'{town_folder}/{primary_filter_folder}/{filename}'
+    return year_div, map_figure, boxplot_figure
 
-            boxplots_df = pd.read_csv(fullpath)
-            boxplots_df = filter_df_by_date(start_date, end_date, boxplots_df)
-            boxplots_figure = get_overview_by_month_boxplot_figure(boxplots_df, statistic_dropdown_value)
-            return boxplots_figure
-
-        if map_click_data == None:
-            return generate_boxplot_figure_for_singapore(primary_filter, secondary_filter)
-        else:
-            town = map_click_data['points'][0]['location']
-            return generate_boxplot_figure_for_town(town, primary_filter, secondary_filter)
-
-    def generate_town_string(map_click_data):
-        if map_click_data == None:
-            return 'Currently viewing data of Singapore'
-        else:
-            return f"Currently viewing data of {map_click_data['points'][0]['location']}"
-
-    secondary_filter_options, secondary_filter_value = get_secondary_filter_config(primary_filter, secondary_filter)
-    map_figure = generate_map_figure()
-    town_string_output = generate_town_string(map_click_data)
-    boxplots_figure = generate_boxplot_figure()
-    barchart_figure = generate_barchart_figure()
-
-    return secondary_filter_options, secondary_filter_value, map_figure, string_output, town_string_output, boxplots_figure, barchart_figure
-
-# Run the app
 if __name__ == '__main__':
     app.run(debug=True)
