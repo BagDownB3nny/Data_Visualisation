@@ -121,9 +121,7 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
     all_towns = geodf['PLN_AREA_N']
     available_towns = filtered_df_by_town['town'].unique()
     unavailable_towns = np.setdiff1d(all_towns, available_towns, assume_unique=True)
-    df_all_towns = pd.concat([filtered_df_by_town, pd.DataFrame({'town': unavailable_towns})]).reset_index(drop=True)
-    unavailable_df_by_town = df_all_towns[df_all_towns.isna().any(axis=1)]
-    unavailable_df_by_town = unavailable_df_by_town.fillna(0)
+    unavailable_df_by_town = pd.DataFrame({'town': unavailable_towns, statistic_input: 0})
     # Add towns with no available data onto map
     map_figure.add_trace(go.Choropleth(
         geojson=geojson,
@@ -146,7 +144,7 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
         y='town',
         color=statistic_input
     )
-    bar_figure.update_layout(coloraxis_showscale=False)
+    bar_figure.update_layout(coloraxis_showscale=False, yaxis_dtick=1)
 
     # Create boxplot
     boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
