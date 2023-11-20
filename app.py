@@ -18,6 +18,9 @@ months = sorted(df['month'].unique())
 # Dict for years and corresponding index on range slider
 date_slider_marks = dict(islice(enumerate(pd.to_datetime(df['month'].unique()).year.astype('str')), None, None, 12)) 
 
+# Town selected in choropleth map
+town_selection = [] # TODO reset on page reload?
+
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -65,11 +68,13 @@ app.layout = html.Div([
         children=[
             dcc.Graph(
                 id='map',
-                style={'flex':'2'}
+                style={'flex':'2'},
+                config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
             ),
             dcc.Graph(
-                id='barplot',
-                style={'flex':'1'}
+                id='bar',
+                style={'flex':'1'},
+                config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
             )
         ], style={'display':'flex'}
     ),
@@ -83,17 +88,19 @@ app.layout = html.Div([
     [
         Output(component_id='year-div', component_property='children'),   
         Output(component_id='map', component_property='figure'),
-        Output(component_id='barplot', component_property='figure'),
-        Output(component_id='boxplot', component_property='figure')
+        Output(component_id='bar', component_property='figure'),
+        Output(component_id='boxplot', component_property='figure'),
+        Output(component_id='map', component_property='clickData'),
     ],
     [
         Input(component_id='statistic-input', component_property='value'),
         Input(component_id='flat-type-input', component_property='value'),
         Input(component_id='storey-range-input', component_property='value'),
-        Input(component_id='date-slider-input', component_property='value')
+        Input(component_id='date-slider-input', component_property='value'),
+        Input(component_id='map', component_property='clickData'),
     ]
 )
-def update_output(statistic_input, flat_type_input, storey_range_input, date_slider_input):
+def update_output(statistic_input, flat_type_input, storey_range_input, date_slider_input, map_click_data):
     # Selected start and end months in the format [YYYY-MM, YYYY-MM]
     month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
     year_div = f'{month_input[0]} - {month_input[1]}'
@@ -113,6 +120,7 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
         locations=filtered_df_by_town['town'],
         z=filtered_df_by_town[statistic_input],
         featureidkey='properties.PLN_AREA_N', 
+        colorscale='blues',
         colorbar={'title': f'Median {statistic_input}'},
         hovertemplate='<b>%{location}</b><br>' + '%{z}' + '<extra></extra>'       
     ))
@@ -128,30 +136,54 @@ def update_output(statistic_input, flat_type_input, storey_range_input, date_sli
         locations=unavailable_df_by_town['town'],
         z=unavailable_df_by_town[statistic_input],
         featureidkey='properties.PLN_AREA_N',
-        colorscale='Greys',
+        colorscale='greys',
         showscale=False,
         hovertemplate='<b>%{location}</b><br>' + 'No Available Data' + '<extra></extra>',
         hoverlabel={'bgcolor' : 'white'}       
     ))
 
+    # Handle clicking town on map
+    if map_click_data:
+        selected_town = map_click_data['points'][0]['location']
+        if selected_town not in town_selection:
+            town_selection.append(selected_town)
+        else:
+            town_selection.remove(selected_town)
+    town_selection_df = pd.DataFrame({'town': town_selection, statistic_input: 0})
+    # Highlight selected towns
+    map_figure.add_trace(go.Choropleth(
+        geojson=geojson,
+        locations=town_selection_df['town'],
+        z=town_selection_df[statistic_input],
+        featureidkey='properties.PLN_AREA_N',
+        colorscale=[(0, "red"), (1, "red")],
+        showscale=False,
+        hoverinfo='none'
+    ))
+    map_click_data_output = None # workaround for clickData persisting as previous value until next click
+        
     map_figure.update_geos(fitbounds="locations", visible=False)
     map_figure.update_layout(coloraxis_colorbar={'title':f'Median {statistic_input}'})
 
-    # Create bar chart for top/bottom towns
+    # Create bar chart for town rankings
     bar_figure = px.bar(
         filtered_df_by_town.sort_values(by=statistic_input), 
         x=statistic_input, 
         y='town',
-        color=statistic_input
+        color=statistic_input,
+        color_continuous_scale='blues'
     )
     bar_figure.update_layout(coloraxis_showscale=False, yaxis_dtick=1)
 
+    # Apply town selection
+    if town_selection:
+        filtered_df = filtered_df[filtered_df['town'].isin(town_selection)]
     # Create boxplot
     boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
     boxplot_figure.update_layout(xaxis_type='category')
     boxplot_figure.update_traces(boxmean=True)
 
-    return year_div, map_figure, bar_figure, boxplot_figure
+    return year_div, map_figure, bar_figure, boxplot_figure, map_click_data_output
 
 if __name__ == '__main__':
     app.run(debug=True)
