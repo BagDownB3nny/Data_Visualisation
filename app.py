@@ -1,4 +1,4 @@
-from dash import Dash, html, dcc, Input, Output, callback, ctx, State
+from dash import Dash, html, dcc, Input, Output, callback, State
 import io
 from data_retrieval import get_all_hdb_data, get_map_data
 import pandas as pd
@@ -18,6 +18,10 @@ storey_ranges = sorted(pd.unique(df['storey_range']))
 months = sorted(df['month'].unique())
 # Dict for years and corresponding index on range slider
 date_slider_marks = dict(islice(enumerate(pd.to_datetime(df['month'].unique()).year.astype('str')), None, None, 12)) 
+# Get colorscale for towns
+towns = geodf['PLN_AREA_N']
+town_colors = px.colors.sample_colorscale('hsv', [town/(towns.count()-1) for town in range(towns.count())])
+town_color_map = dict(zip(towns, town_colors))
 
 app = Dash(__name__)
 
@@ -76,10 +80,13 @@ app.layout = html.Div([
             )
         ], style={'display':'flex'}
     ),
-
+    dcc.Graph(
+        id='compare_statistic_time_series'
+    ),
     dcc.Graph(
         id='boxplot',
     ),
+
 
     dcc.Store(
         id='filtered_data'
@@ -111,6 +118,9 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
 
     # Group filtered data by town
     filtered_df_by_town = filtered_df.groupby(by=['town'])[statistic_input].median().reset_index().sort_values(by=statistic_input)
+    # Group filtered data by town and month
+    filtered_df_by_town_and_month = filtered_df.groupby(by=['town', 'month'])[statistic_input].median()
+    filtered_df_by_town_and_month = filtered_df_by_town_and_month.unstack().stack(dropna=False).rename(statistic_input).reset_index(level=['town', 'month']) # Fill missing months with NaN for gaps in line plot
 
     # Get unavailable data by town
     all_towns = geodf['PLN_AREA_N']
@@ -121,6 +131,7 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
     filtered_data = {
         'filtered_df': filtered_df.to_json(orient='split', date_format='iso'),
         'filtered_df_by_town': filtered_df_by_town.to_json(orient='split', date_format='iso'),
+        'filtered_df_by_town_and_month': filtered_df_by_town_and_month.to_json(orient='split', date_format='iso'),
         'unavailable_df_by_town': unavailable_df_by_town.to_json(orient='split', date_format='iso')
     }
     
@@ -181,7 +192,10 @@ def update_map(filtered_data_json, statistic_input):
     return map_figure, bar_figure
 
 @callback(
-    Output(component_id='boxplot', component_property='figure'),
+    [
+        Output(component_id='compare_statistic_time_series', component_property='figure'),
+        Output(component_id='boxplot', component_property='figure'),
+    ],
     [
         Input(component_id='filtered_data', component_property='data'),
         Input(component_id='map', component_property='selectedData')
@@ -191,17 +205,30 @@ def update_map(filtered_data_json, statistic_input):
 def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
     filtered_data = json.loads(filtered_data_json)
     filtered_df = pd.read_json(io.StringIO(filtered_data['filtered_df']), orient='split')
+    filtered_df_by_town_and_month = pd.read_json(io.StringIO(filtered_data['filtered_df_by_town_and_month']), orient='split')
 
     if selected_map_data:
         town_selection = [point['location'] for point in selected_map_data['points']]
-        filtered_df = filtered_df[filtered_df['town'].isin(town_selection)]
+        filtered_df_by_town_and_month = filtered_df_by_town_and_month[filtered_df_by_town_and_month['town'].isin(town_selection)]
+        filtered_df = filtered_df[filtered_df['town'].isin(town_selection)].reset_index(drop=True)
+
+    # Create line plot
+    compare_statistic_time_series_figure = px.line(
+        filtered_df_by_town_and_month, 
+        x='month', 
+        y=statistic_input, 
+        color='town',
+        color_discrete_map=town_color_map
+    )
+    compare_statistic_time_series_figure.update_layout(xaxis_type='category', yaxis_title=f'Median {statistic_input}')
+    compare_statistic_time_series_figure.update_traces(connectgaps=False)
 
     # Create boxplot
     boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
     boxplot_figure.update_layout(xaxis_type='category')
     boxplot_figure.update_traces(boxmean=True)
 
-    return boxplot_figure
+    return compare_statistic_time_series_figure, boxplot_figure
 
 if __name__ == '__main__':
     app.run(debug=True)
