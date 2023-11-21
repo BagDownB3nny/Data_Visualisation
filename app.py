@@ -182,12 +182,19 @@ def update_map(filtered_data_json, statistic_input):
 
 @callback(
     Output(component_id='boxplot', component_property='figure'),
-    Input(component_id='filtered_data', component_property='data'),
+    [
+        Input(component_id='filtered_data', component_property='data'),
+        Input(component_id='map', component_property='selectedData')
+    ],
     State(component_id='statistic-input', component_property='value'),
 )
-def update_boxplot(filtered_data_json, statistic_input):
+def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
     filtered_data = json.loads(filtered_data_json)
     filtered_df = pd.read_json(io.StringIO(filtered_data['filtered_df']), orient='split')
+
+    if selected_map_data:
+        town_selection = [point['location'] for point in selected_map_data['points']]
+        filtered_df = filtered_df[filtered_df['town'].isin(town_selection)]
 
     # Create boxplot
     boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
@@ -195,7 +202,6 @@ def update_boxplot(filtered_data_json, statistic_input):
     boxplot_figure.update_traces(boxmean=True)
 
     return boxplot_figure
-
 
 if __name__ == '__main__':
     app.run(debug=True)
