@@ -32,11 +32,10 @@ app.layout = html.Div([
         min=0,
         max=len(months)-1,
         marks=date_slider_marks,
-        # value=[0, len(months)-1],
-        value=[0, 50],
+        value=[0, len(months)-1],
         step=1,
     ),
-        html.Div(
+    html.Div(
         id='year-div'
     ),
     html.Div(children='Statistic'),
@@ -65,45 +64,41 @@ app.layout = html.Div([
     ],
     style={'display': 'flex'}),
     html.Div(
-        id='output-div',
-    ),
-    html.Div(
         children=[
             dcc.Graph(
                 id='map',
                 style={'flex':'2'},
             ),
             dcc.Graph(
-                id='bar',
+                id='town-ranking',
                 style={'flex':'1'},
                 config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
             )
         ], style={'display':'flex'}
     ),
     dcc.Graph(
-        id='compare_statistic_time_series'
+        id='compare-statistic-time-series'
     ),
     dcc.Graph(
-        id='boxplot',
+        id='combined-statistic-time-series',
     ),
     html.Div([
         dcc.Graph(
-            id='flat_type_area'
+            id='flat-type-area'
         ),
         dcc.Graph(
-            id='storey_range_area'
+            id='storey-range-area'
         )], style={'display':'flex'}),
 
-
     dcc.Store(
-        id='filtered_data'
+        id='filtered-data'
     )
 ])
 
 @callback(
     [
         Output(component_id='year-div', component_property='children'),
-        Output(component_id='filtered_data', component_property='data')
+        Output(component_id='filtered-data', component_property='data')
     ],
     [
         Input(component_id='statistic-input', component_property='value'),
@@ -115,7 +110,7 @@ app.layout = html.Div([
 def update_data(statistic_input, flat_type_input, storey_range_input, date_slider_input):
     # Selected start and end months in the format [YYYY-MM, YYYY-MM]
     month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
-    year_div = f'{month_input[0]} - {month_input[1]}'
+    year_div = f'Showing data from between {month_input[0]} and {month_input[1]}'
     
     # Apply selected filters to dataset
     flat_types_filter = df['flat_type'].isin(flat_type_input)
@@ -147,9 +142,9 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
 @callback(
     [ 
         Output(component_id='map', component_property='figure'),
-        Output(component_id='bar', component_property='figure'),
+        Output(component_id='town-ranking', component_property='figure'),
     ],
-    Input(component_id='filtered_data', component_property='data'),
+    Input(component_id='filtered-data', component_property='data'),
     State(component_id='statistic-input', component_property='value'),
 )
 def update_map(filtered_data_json, statistic_input):
@@ -165,7 +160,7 @@ def update_map(filtered_data_json, statistic_input):
         featureidkey='properties.PLN_AREA_N', 
         colorscale='blues',
         colorbar={'title': f'Median {statistic_input}'},
-        hovertemplate='<b>%{location}</b><br>' + '%{z}' + '<extra></extra>'       
+        hovertemplate='<b>%{location}</b><br>' + '%{z}' + '<extra></extra>'    
     ))
 
     # Add towns with no available data onto map
@@ -183,35 +178,41 @@ def update_map(filtered_data_json, statistic_input):
     map_figure.update_geos(fitbounds="locations", visible=False)
     map_figure.update_layout(
         coloraxis_colorbar={'title':f'Median {statistic_input}'},
-        clickmode='event+select'
+        clickmode='event+select',
+        title=f'Median {statistic_input} By Town<br><sup>Left Click to select a town, Shift+Left Click to select multiple towns</sup>'
     )
 
     # Create bar chart for town rankings
-    bar_figure = px.bar(
+    town_ranking_figure = px.bar(
         filtered_df_by_town, 
         x=statistic_input, 
         y='town',
         color=statistic_input,
-        color_continuous_scale='blues'
+        color_continuous_scale='blues',
+        title=f'Median {statistic_input} By Town Ranking'
     )
-    bar_figure.update_layout(coloraxis_showscale=False, yaxis_dtick=1)
+    town_ranking_figure.update_layout(
+        coloraxis_showscale=False, 
+        yaxis_dtick=1, 
+        xaxis_title=f'Median {statistic_input}'
+    )
 
-    return map_figure, bar_figure
+    return map_figure, town_ranking_figure
 
 @callback(
     [
-        Output(component_id='compare_statistic_time_series', component_property='figure'),
-        Output(component_id='boxplot', component_property='figure'),
-        Output(component_id='flat_type_area', component_property='figure'),
-        Output(component_id='storey_range_area', component_property='figure'),
+        Output(component_id='compare-statistic-time-series', component_property='figure'),
+        Output(component_id='combined-statistic-time-series', component_property='figure'),
+        Output(component_id='flat-type-area', component_property='figure'),
+        Output(component_id='storey-range-area', component_property='figure'),
     ],
     [
-        Input(component_id='filtered_data', component_property='data'),
+        Input(component_id='filtered-data', component_property='data'),
         Input(component_id='map', component_property='selectedData')
     ],
     State(component_id='statistic-input', component_property='value'),
 )
-def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
+def update_combined_time_series(filtered_data_json, selected_map_data, statistic_input):
     filtered_data = json.loads(filtered_data_json)
     filtered_df = pd.read_json(io.StringIO(filtered_data['filtered_df']), orient='split')
     filtered_df_by_town_and_month = pd.read_json(io.StringIO(filtered_data['filtered_df_by_town_and_month']), orient='split')
@@ -227,15 +228,24 @@ def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
         x='month', 
         y=statistic_input, 
         color='town',
-        color_discrete_map=town_color_map
+        color_discrete_map=town_color_map,
+        title=f'Median {statistic_input} By Town Over Time'
     )
-    compare_statistic_time_series_figure.update_layout(xaxis_type='category', yaxis_title=f'Median {statistic_input}')
+    compare_statistic_time_series_figure.update_layout(
+        xaxis_type='category', 
+        yaxis_title=f'Median {statistic_input}')
     compare_statistic_time_series_figure.update_traces(connectgaps=False)
 
     # Create boxplot
-    boxplot_figure = px.box(filtered_df, x='month', y=statistic_input, color='month')
-    boxplot_figure.update_layout(xaxis_type='category')
-    boxplot_figure.update_traces(boxmean=True)
+    combined_statistic_time_series_figure = px.box(
+        filtered_df, 
+        x='month', 
+        y=statistic_input, 
+        color='month',
+        title=f'Combined {statistic_input} Over Time'
+    )
+    combined_statistic_time_series_figure.update_layout(xaxis_type='category', yaxis_title=f'{statistic_input}')
+    combined_statistic_time_series_figure.update_traces(boxmean=True)
 
     # Get counts for flat type categories over time
     flat_type_counts = filtered_df.groupby(by=['month', 'flat_type']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'flat_type'])
@@ -256,7 +266,7 @@ def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
     storey_range_area_figure.update_layout(xaxis_type='category')
     
 
-    return compare_statistic_time_series_figure, boxplot_figure, flat_type_area_figure, storey_range_area_figure
+    return compare_statistic_time_series_figure, combined_statistic_time_series_figure, flat_type_area_figure, storey_range_area_figure
 
 if __name__ == '__main__':
     app.run(debug=True)
