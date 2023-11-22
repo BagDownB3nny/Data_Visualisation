@@ -17,7 +17,7 @@ flat_types = sorted(pd.unique(df['flat_type']))
 storey_ranges = sorted(pd.unique(df['storey_range']))
 months = sorted(df['month'].unique())
 # Dict for years and corresponding index on range slider
-date_slider_marks = dict(islice(enumerate(pd.to_datetime(df['month'].unique()).year.astype('str')), None, None, 12)) 
+date_slider_marks = dict(islice(enumerate(pd.to_datetime(months).year.astype('str')), None, None, 12)) 
 # Get colorscale for towns
 towns = geodf['PLN_AREA_N']
 town_colors = px.colors.sample_colorscale('hsv', [town/(towns.count()-1) for town in range(towns.count())])
