@@ -86,6 +86,13 @@ app.layout = html.Div([
     dcc.Graph(
         id='boxplot',
     ),
+    html.Div([
+        dcc.Graph(
+            id='flat_type_area'
+        ),
+        dcc.Graph(
+            id='storey_range_area'
+        )], style={'display':'flex'}),
 
 
     dcc.Store(
@@ -195,6 +202,8 @@ def update_map(filtered_data_json, statistic_input):
     [
         Output(component_id='compare_statistic_time_series', component_property='figure'),
         Output(component_id='boxplot', component_property='figure'),
+        Output(component_id='flat_type_area', component_property='figure'),
+        Output(component_id='storey_range_area', component_property='figure'),
     ],
     [
         Input(component_id='filtered_data', component_property='data'),
@@ -228,7 +237,26 @@ def update_boxplot(filtered_data_json, selected_map_data, statistic_input):
     boxplot_figure.update_layout(xaxis_type='category')
     boxplot_figure.update_traces(boxmean=True)
 
-    return compare_statistic_time_series_figure, boxplot_figure
+    # Get counts for flat type categories over time
+    flat_type_counts = filtered_df.groupby(by=['month', 'flat_type']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'flat_type'])
+    flat_type_totals = filtered_df.groupby(by=['month']).size().rename('total').reset_index()
+    flat_type_counts = flat_type_counts.merge(flat_type_totals, on='month')
+    flat_type_counts['percentage'] = round(flat_type_counts['count'] / flat_type_counts['total'] * 100, 1)
+    # Create stacked area chart
+    flat_type_area_figure = px.area(flat_type_counts, x='month', y='count', color='flat_type', hover_data=['flat_type', 'month', 'count', 'total', 'percentage'])
+    flat_type_area_figure.update_layout(xaxis_type='category')
+
+    # Get counts for storey range categories over time
+    storey_range_counts = filtered_df.groupby(by=['month', 'storey_range']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'storey_range'])
+    storey_range_totals = filtered_df.groupby(by=['month']).size().rename('total').reset_index()
+    storey_range_counts = storey_range_counts.merge(storey_range_totals, on='month')
+    storey_range_counts['percentage'] = round(storey_range_counts['count'] / storey_range_counts['total'] * 100, 1)
+    # Create stacked area chart
+    storey_range_area_figure = px.area(storey_range_counts, x='month', y='count', color='storey_range', hover_data=['storey_range', 'month', 'count', 'total', 'percentage'])
+    storey_range_area_figure.update_layout(xaxis_type='category')
+    
+
+    return compare_statistic_time_series_figure, boxplot_figure, flat_type_area_figure, storey_range_area_figure
 
 if __name__ == '__main__':
     app.run(debug=True)
