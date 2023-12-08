@@ -37,7 +37,7 @@ app.layout = html.Div([
         step=1,
     ),
     html.Div(
-        id='year-div'
+        id='date-div'
     ),
     html.Div(children='Statistic'),
     dcc.Dropdown(
@@ -116,8 +116,17 @@ app.layout = html.Div([
 ])
 
 @callback(
+    Output(component_id='date-div', component_property='children'),
+    Input(component_id='date-slider-input', component_property='value')
+)
+def update_date_display(date_slider_input):
+    # Selected start and end months in the format [YYYY-MM, YYYY-MM]
+    month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
+    date_div = f'Showing data from between {month_input[0]} and {month_input[1]}'
+    return date_div
+
+@callback(
     [
-        Output(component_id='year-div', component_property='children'),
         Output(component_id='filtered-data', component_property='data'),
         Output(component_id='load-map-on-filter', component_property='children'),
         Output(component_id='load-combined-graphs-on-filter', component_property='children')
@@ -132,7 +141,6 @@ app.layout = html.Div([
 def update_data(statistic_input, flat_type_input, storey_range_input, date_slider_input):
     # Selected start and end months in the format [YYYY-MM, YYYY-MM]
     month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
-    year_div = f'Showing data from between {month_input[0]} and {month_input[1]}'
     
     # Apply selected filters to dataset
     flat_types_filter = df['flat_type'].isin(flat_type_input)
@@ -159,7 +167,7 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
         'unavailable_df_by_town': unavailable_df_by_town.to_json(orient='split', date_format='iso')
     }
     
-    return year_div, json.dumps(filtered_data), None, None
+    return json.dumps(filtered_data), None, None
 
 @callback(
     [ 
