@@ -268,6 +268,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     )
     compare_statistic_time_series_figure.update_layout(
         xaxis_type='category', 
+        xaxis_dtick=12,
         yaxis_title=f'Median {statistic_input}')
     compare_statistic_time_series_figure.update_traces(connectgaps=False)
     compare_statistic_time_series_graph = dcc.Graph(figure=compare_statistic_time_series_figure)
@@ -277,10 +278,11 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         filtered_df, 
         x='month', 
         y=statistic_input, 
+        points=False,
         color='month',
         title=f'Combined {statistic_input} Over Time'
     )
-    combined_statistic_time_series_figure.update_layout(xaxis_type='category', yaxis_title=f'{statistic_input}')
+    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=12, yaxis_title=f'{statistic_input}')
     combined_statistic_time_series_figure.update_traces(boxmean=True)
     combined_statistic_time_series_graph = dcc.Graph(figure=combined_statistic_time_series_figure)
 
@@ -291,7 +293,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     flat_type_counts['percentage'] = round(flat_type_counts['count'] / flat_type_counts['total'] * 100, 1)
     # Create stacked area chart
     flat_type_area_figure = px.area(flat_type_counts, x='month', y='count', color='flat_type', hover_data=['flat_type', 'month', 'count', 'total', 'percentage'])
-    flat_type_area_figure.update_layout(xaxis_type='category')
+    flat_type_area_figure.update_layout(xaxis_type='category', xaxis_dtick=12)
     flat_type_area_graph = dcc.Graph(figure=flat_type_area_figure)
 
     # Get counts for storey range categories over time
@@ -301,7 +303,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     storey_range_counts['percentage'] = round(storey_range_counts['count'] / storey_range_counts['total'] * 100, 1)
     # Create stacked area chart
     storey_range_area_figure = px.area(storey_range_counts, x='month', y='count', color='storey_range', hover_data=['storey_range', 'month', 'count', 'total', 'percentage'])
-    storey_range_area_figure.update_layout(xaxis_type='category')
+    storey_range_area_figure.update_layout(xaxis_type='category', xaxis_dtick=12)
     storey_range_area_graph = dcc.Graph(figure=storey_range_area_figure)
     
 
