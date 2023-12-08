@@ -24,6 +24,7 @@ town_colors = px.colors.sample_colorscale('hsv', [town/(towns.count()-1) for tow
 town_color_map = dict(zip(towns, town_colors))
 
 app = Dash(__name__)
+app.config['suppress_callback_exceptions'] = True
 
 app.layout = html.Div([
     dcc.RangeSlider(
@@ -69,14 +70,13 @@ app.layout = html.Div([
         children=[
             html.Div(
                 children=[
-                    dcc.Graph(
+                    html.Div(
                         id='map',
                         style={'flex':'2'},
                     ),
-                    dcc.Graph(
+                    html.Div(
                         id='town-ranking',
                         style={'flex':'1'},
-                        config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
                     )
                 ], style={'display':'flex'}
             ),
@@ -90,19 +90,19 @@ app.layout = html.Div([
         id='combined-graphs-loader',
         type='circle',
         children=[
-            dcc.Graph(
+            html.Div(
                 id='compare-statistic-time-series'
             ),
-            dcc.Graph(
-                id='combined-statistic-time-series',
+            html.Div(
+                id='combined-statistic-time-series'
             ),
             html.Div([
-                dcc.Graph(
+                html.Div(
                     id='flat-type-area'
                 ),
-                dcc.Graph(
+                html.Div(
                     id='storey-range-area'
-                )], style={'display':'flex'}),
+                ),], style={'display':'flex'}),
             html.Div(
                 id='load-combined-graphs-on-filter'
             )
@@ -163,8 +163,8 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
 
 @callback(
     [ 
-        Output(component_id='map', component_property='figure'),
-        Output(component_id='town-ranking', component_property='figure'),
+        Output(component_id='map', component_property='children'),
+        Output(component_id='town-ranking', component_property='children'),
     ],
     Input(component_id='filtered-data', component_property='data'),
     State(component_id='statistic-input', component_property='value'),
@@ -203,6 +203,7 @@ def update_map(filtered_data_json, statistic_input):
         clickmode='event+select',
         title=f'Median {statistic_input} By Town<br><sup>Left Click to select a town, Shift+Left Click to select multiple towns</sup>'
     )
+    map_graph = dcc.Graph(figure=map_figure, id='map-graph')
 
     # Create bar chart for town rankings
     town_ranking_figure = px.bar(
@@ -218,19 +219,23 @@ def update_map(filtered_data_json, statistic_input):
         yaxis_dtick=1, 
         xaxis_title=f'Median {statistic_input}'
     )
+    town_ranking_graph = dcc.Graph(
+        figure=town_ranking_figure,
+        config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
+    )
 
-    return map_figure, town_ranking_figure
+    return map_graph, town_ranking_graph
 
 @callback(
     [
-        Output(component_id='compare-statistic-time-series', component_property='figure'),
-        Output(component_id='combined-statistic-time-series', component_property='figure'),
-        Output(component_id='flat-type-area', component_property='figure'),
-        Output(component_id='storey-range-area', component_property='figure'),
+        Output(component_id='compare-statistic-time-series', component_property='children'),
+        Output(component_id='combined-statistic-time-series', component_property='children'),
+        Output(component_id='flat-type-area', component_property='children'),
+        Output(component_id='storey-range-area', component_property='children'),
     ],
     [
         Input(component_id='filtered-data', component_property='data'),
-        Input(component_id='map', component_property='selectedData')
+        Input(component_id='map-graph', component_property='selectedData')
     ],
     State(component_id='statistic-input', component_property='value'),
 )
@@ -257,6 +262,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         xaxis_type='category', 
         yaxis_title=f'Median {statistic_input}')
     compare_statistic_time_series_figure.update_traces(connectgaps=False)
+    compare_statistic_time_series_graph = dcc.Graph(figure=compare_statistic_time_series_figure)
 
     # Create boxplot
     combined_statistic_time_series_figure = px.box(
@@ -268,6 +274,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     )
     combined_statistic_time_series_figure.update_layout(xaxis_type='category', yaxis_title=f'{statistic_input}')
     combined_statistic_time_series_figure.update_traces(boxmean=True)
+    combined_statistic_time_series_graph = dcc.Graph(figure=combined_statistic_time_series_figure)
 
     # Get counts for flat type categories over time
     flat_type_counts = filtered_df.groupby(by=['month', 'flat_type']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'flat_type'])
@@ -277,6 +284,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     # Create stacked area chart
     flat_type_area_figure = px.area(flat_type_counts, x='month', y='count', color='flat_type', hover_data=['flat_type', 'month', 'count', 'total', 'percentage'])
     flat_type_area_figure.update_layout(xaxis_type='category')
+    flat_type_area_graph = dcc.Graph(figure=flat_type_area_figure)
 
     # Get counts for storey range categories over time
     storey_range_counts = filtered_df.groupby(by=['month', 'storey_range']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'storey_range'])
@@ -286,9 +294,10 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     # Create stacked area chart
     storey_range_area_figure = px.area(storey_range_counts, x='month', y='count', color='storey_range', hover_data=['storey_range', 'month', 'count', 'total', 'percentage'])
     storey_range_area_figure.update_layout(xaxis_type='category')
+    storey_range_area_graph = dcc.Graph(figure=storey_range_area_figure)
     
 
-    return compare_statistic_time_series_figure, combined_statistic_time_series_figure, flat_type_area_figure, storey_range_area_figure
+    return compare_statistic_time_series_graph, combined_statistic_time_series_graph, flat_type_area_graph, storey_range_area_graph
 
 if __name__ == '__main__':
     app.run(debug=True)
