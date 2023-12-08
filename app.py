@@ -63,32 +63,52 @@ app.layout = html.Div([
         ),
     ],
     style={'display': 'flex'}),
-    html.Div(
+    dcc.Loading(
+        id='map-loader',
+        type='circle',
+        children=[
+            html.Div(
+                children=[
+                    dcc.Graph(
+                        id='map',
+                        style={'flex':'2'},
+                    ),
+                    dcc.Graph(
+                        id='town-ranking',
+                        style={'flex':'1'},
+                        config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
+                    )
+                ], style={'display':'flex'}
+            ),
+            # Workaround no loading_state property: https://github.com/plotly/dash/issues/1441
+            html.Div(
+                id='load-map-on-filter'
+            )
+        ]
+    ),
+    dcc.Loading(
+        id='combined-graphs-loader',
+        type='circle',
         children=[
             dcc.Graph(
-                id='map',
-                style={'flex':'2'},
+                id='compare-statistic-time-series'
             ),
             dcc.Graph(
-                id='town-ranking',
-                style={'flex':'1'},
-                config={'modeBarButtonsToRemove':['lasso2d', 'select2d']}
+                id='combined-statistic-time-series',
+            ),
+            html.Div([
+                dcc.Graph(
+                    id='flat-type-area'
+                ),
+                dcc.Graph(
+                    id='storey-range-area'
+                )], style={'display':'flex'}),
+            html.Div(
+                id='load-combined-graphs-on-filter'
             )
-        ], style={'display':'flex'}
+        ]
+        
     ),
-    dcc.Graph(
-        id='compare-statistic-time-series'
-    ),
-    dcc.Graph(
-        id='combined-statistic-time-series',
-    ),
-    html.Div([
-        dcc.Graph(
-            id='flat-type-area'
-        ),
-        dcc.Graph(
-            id='storey-range-area'
-        )], style={'display':'flex'}),
 
     dcc.Store(
         id='filtered-data'
@@ -98,7 +118,9 @@ app.layout = html.Div([
 @callback(
     [
         Output(component_id='year-div', component_property='children'),
-        Output(component_id='filtered-data', component_property='data')
+        Output(component_id='filtered-data', component_property='data'),
+        Output(component_id='load-map-on-filter', component_property='children'),
+        Output(component_id='load-combined-graphs-on-filter', component_property='children')
     ],
     [
         Input(component_id='statistic-input', component_property='value'),
@@ -137,7 +159,7 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
         'unavailable_df_by_town': unavailable_df_by_town.to_json(orient='split', date_format='iso')
     }
     
-    return year_div, json.dumps(filtered_data)
+    return year_div, json.dumps(filtered_data), None, None
 
 @callback(
     [ 
@@ -212,7 +234,7 @@ def update_map(filtered_data_json, statistic_input):
     ],
     State(component_id='statistic-input', component_property='value'),
 )
-def update_combined_time_series(filtered_data_json, selected_map_data, statistic_input):
+def update_combined_graphs(filtered_data_json, selected_map_data, statistic_input):
     filtered_data = json.loads(filtered_data_json)
     filtered_df = pd.read_json(io.StringIO(filtered_data['filtered_df']), orient='split')
     filtered_df_by_town_and_month = pd.read_json(io.StringIO(filtered_data['filtered_df_by_town_and_month']), orient='split')
