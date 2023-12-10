@@ -324,7 +324,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         y='count', 
         color='flat_type', 
         hover_data=['flat_type', 'year', 'count', 'total', 'percentage'],
-        title=f'Combined Flat Types',
+        title=f'Combined Flat Types Over Time',
         labels={
             'count': 'Number Of Flats',
             'total': 'Total Flats',
@@ -349,7 +349,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         y='count', 
         color='storey_range', 
         hover_data=['storey_range', 'year', 'count', 'total', 'percentage'],
-        title=f'Combined Storey Ranges',
+        title=f'Combined Storey Ranges Over Time',
         labels={
             'count': 'Number Of Flats',
             'total': 'Total Flats',
