@@ -303,7 +303,12 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
             'year': 'Year'
         },
     )
-    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=1, yaxis_title=f'{snake_to_title_case(statistic_input)}')
+    combined_statistic_time_series_figure.update_layout(
+        xaxis_type='category', 
+        xaxis_dtick=1, 
+        yaxis_title=f'{snake_to_title_case(statistic_input)}',
+        showlegend=False
+    )
     combined_statistic_time_series_figure.update_traces(boxmean=True)
     combined_statistic_time_series_graph = dcc.Graph(figure=combined_statistic_time_series_figure)
 
