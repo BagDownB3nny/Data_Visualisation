@@ -1,6 +1,6 @@
 from dash import Dash, html, dcc, Input, Output, callback, State
 import io
-from data_retrieval import get_all_hdb_data, get_map_data
+from utils import get_all_hdb_data, get_map_data, snake_to_title_case
 import pandas as pd
 from itertools import islice
 import plotly.express as px
@@ -27,6 +27,9 @@ app = Dash(__name__)
 app.config['suppress_callback_exceptions'] = True
 
 app.layout = html.Div([
+    html.Div(
+        id='date-div'
+    ),
     dcc.RangeSlider(
         allowCross=False,
         id="date-slider-input",
@@ -36,32 +39,36 @@ app.layout = html.Div([
         value=[0, len(years)-1],
         step=1,
     ),
-    html.Div(
-        id='date-div'
-    ),
-    html.Div(children='Statistic'),
+    html.Div(children='Statistic', style={'font-weight':'bold'}),
     dcc.Dropdown(
         id='statistic-input',
         options=[
-            {'label' : 'Resale Price per sqm', 'value' : 'resale_price_per_sqm'}, 
-            {'label' : 'Resale Price', 'value' : 'resale_price'}, 
-            {'label' : 'Floor Area', 'value' : 'floor_area_sqm'}, 
+            {'label' : 'Resale Price Per Sqm (SGD/sqm)', 'value' : 'resale_price_per_sqm'}, 
+            {'label' : 'Resale Price (SGD)', 'value' : 'resale_price'}, 
+            {'label' : 'Floor Area (sqm)', 'value' : 'floor_area_sqm'}, 
         ],
         value='resale_price_per_sqm'
     ),
+    html.Div(children='Filter By', style={'font-weight':'bold', 'margin-top':'1em'}),
     html.Div(children=[
-        html.Div(children='Flat Type'),
-        dcc.Checklist(
-            id='flat-type-input',
-            options=flat_types,
-            value=flat_types
-        ),
-        html.Div(children='Storey Range'),
-        dcc.Checklist(
-            id='storey-range-input',
-            options=storey_ranges,
-            value=storey_ranges
-        ),
+        html.Div(children=[
+            'Flat Type',
+            dcc.Checklist(
+                id='flat-type-input',
+                options=flat_types,
+                value=flat_types,
+                style={'display': 'flex'}
+            ), 
+        ], style={'flex':1}),
+        html.Div(children=[
+            'Storey Range',
+            dcc.Checklist(
+                id='storey-range-input',
+                options=storey_ranges,
+                value=storey_ranges,
+                style={'display': 'flex'}
+            ),
+        ], style={'flex':1}),
     ],
     style={'display': 'flex'}),
     dcc.Loading(
@@ -84,7 +91,7 @@ app.layout = html.Div([
             html.Div(
                 id='load-map-on-filter'
             )
-        ]
+        ],
     ),
     dcc.Loading(
         id='combined-graphs-loader',
@@ -98,10 +105,12 @@ app.layout = html.Div([
             ),
             html.Div([
                 html.Div(
-                    id='flat-type-area'
+                    id='flat-type-area',
+                    style={'flex':'1'}
                 ),
                 html.Div(
-                    id='storey-range-area'
+                    id='storey-range-area',
+                    style={'flex':'1'}
                 ),], style={'display':'flex'}),
             html.Div(
                 id='load-combined-graphs-on-filter'
@@ -187,8 +196,8 @@ def update_map(filtered_data_json, statistic_input):
         z=filtered_df_by_town[statistic_input],
         featureidkey='properties.PLN_AREA_N', 
         colorscale='blues',
-        colorbar={'title': f'Median {statistic_input}'},
-        hovertemplate='<b>%{location}</b><br>' + '%{z}' + '<extra></extra>'    
+        colorbar={'title': f'Median {snake_to_title_case(statistic_input)}'},
+        hovertemplate='<b>Town=%{location}</b><br>' + f'{snake_to_title_case(statistic_input)}' + '=%{z}' + '<extra></extra>'    
     ))
 
     # Add towns with no available data onto map
@@ -205,9 +214,9 @@ def update_map(filtered_data_json, statistic_input):
     
     map_figure.update_geos(fitbounds="locations", visible=False)
     map_figure.update_layout(
-        coloraxis_colorbar={'title':f'Median {statistic_input}'},
+        coloraxis_colorbar={'title':f'Median {snake_to_title_case(statistic_input)}'},
         clickmode='event+select',
-        title=f'Median {statistic_input} By Town<br><sup>Left Click to select a town, Shift+Left Click to select multiple towns</sup>'
+        title=f'Median {snake_to_title_case(statistic_input)} By Town<br><sup>Left Click to select a town, Shift+Left Click to select multiple towns</sup>'
     )
     map_graph = dcc.Graph(figure=map_figure, id='map-graph')
 
@@ -216,14 +225,19 @@ def update_map(filtered_data_json, statistic_input):
         filtered_df_by_town, 
         x=statistic_input, 
         y='town',
+        labels={
+            'town': 'Town',
+            'resale_price_per_sqm': 'Median Resale Price Per Sqm', 
+            'resale_price': 'Median Resale Price',
+            'floor_area_sqm': 'Median Floor Area',
+        },
         color=statistic_input,
         color_continuous_scale='blues',
-        title=f'Median {statistic_input} By Town Ranking'
+        title=f'Median {snake_to_title_case(statistic_input)} By Town Ranking'
     )
     town_ranking_figure.update_layout(
         coloraxis_showscale=False, 
-        yaxis_dtick=1, 
-        xaxis_title=f'Median {statistic_input}'
+        yaxis_dtick=1,
     )
     town_ranking_graph = dcc.Graph(
         figure=town_ranking_figure,
@@ -262,11 +276,18 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         y=statistic_input, 
         color='town',
         color_discrete_map=town_color_map,
-        title=f'Median {statistic_input} By Town Over Time'
+        title=f'Median {snake_to_title_case(statistic_input)} By Town Over Time',
+        labels={
+            'year': 'Year',
+            'town': 'Town',
+            'resale_price_per_sqm': 'Resale Price Per Sqm', 
+            'resale_price': 'Resale Price',
+            'floor_area_sqm': 'Floor Area',
+        },
     )
     compare_statistic_time_series_figure.update_layout(
         xaxis_type='category',
-        yaxis_title=f'Median {statistic_input}')
+        yaxis_title=f'Median {snake_to_title_case(statistic_input)}')
     compare_statistic_time_series_figure.update_traces(connectgaps=False)
     compare_statistic_time_series_graph = dcc.Graph(figure=compare_statistic_time_series_figure)
 
@@ -277,9 +298,12 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         y=statistic_input, 
         points=False,
         color='year',
-        title=f'Combined {statistic_input} Over Time'
+        title=f'Combined {snake_to_title_case(statistic_input)} Over Time',
+        labels={
+            'year': 'Year'
+        },
     )
-    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=1, yaxis_title=f'{statistic_input}')
+    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=1, yaxis_title=f'{snake_to_title_case(statistic_input)}')
     combined_statistic_time_series_figure.update_traces(boxmean=True)
     combined_statistic_time_series_graph = dcc.Graph(figure=combined_statistic_time_series_figure)
 
@@ -289,7 +313,21 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     flat_type_counts = flat_type_counts.merge(flat_type_totals, on='year')
     flat_type_counts['percentage'] = round(flat_type_counts['count'] / flat_type_counts['total'] * 100, 1)
     # Create stacked area chart
-    flat_type_area_figure = px.area(flat_type_counts, x='year', y='count', color='flat_type', hover_data=['flat_type', 'year', 'count', 'total', 'percentage'])
+    flat_type_area_figure = px.area(
+        flat_type_counts, 
+        x='year', 
+        y='count', 
+        color='flat_type', 
+        hover_data=['flat_type', 'year', 'count', 'total', 'percentage'],
+        title=f'Combined Flat Types',
+        labels={
+            'count': 'Number Of Flats',
+            'total': 'Total Flats',
+            'flat_type': 'Flat Type',
+            'year': 'Year',
+            'percentage': 'Percentage (%)'
+        },
+    )
     flat_type_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
     flat_type_area_graph = dcc.Graph(figure=flat_type_area_figure)
 
@@ -299,7 +337,21 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     storey_range_counts = storey_range_counts.merge(storey_range_totals, on='year')
     storey_range_counts['percentage'] = round(storey_range_counts['count'] / storey_range_counts['total'] * 100, 1)
     # Create stacked area chart
-    storey_range_area_figure = px.area(storey_range_counts, x='year', y='count', color='storey_range', hover_data=['storey_range', 'year', 'count', 'total', 'percentage'])
+    storey_range_area_figure = px.area(
+        storey_range_counts, 
+        x='year', 
+        y='count', 
+        color='storey_range', 
+        hover_data=['storey_range', 'year', 'count', 'total', 'percentage'],
+        title=f'Combined Storey Ranges',
+        labels={
+            'count': 'Number Of Flats',
+            'total': 'Total Flats',
+            'storey_range': 'Storey Range',
+            'year': 'Year',
+            'percentage': 'Percentage (%)'
+        },
+    )
     storey_range_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
     storey_range_area_graph = dcc.Graph(figure=storey_range_area_figure)
 

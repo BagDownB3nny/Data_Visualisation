@@ -6,3 +6,6 @@ def get_map_data():
 
 def get_all_hdb_data():
     return pd.read_csv('./data/resale_price_data/ResaleFlatPrices1990to2023Processed.csv')
+
+def snake_to_title_case(str):
+    return str.title().replace("_", " ")
