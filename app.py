@@ -15,9 +15,9 @@ df = get_all_hdb_data()
 # Get categories
 flat_types = sorted(pd.unique(df['flat_type']))
 storey_ranges = sorted(pd.unique(df['storey_range']))
-months = sorted(df['month'].unique())
+years = sorted(df['year'].astype(str).unique())
 # Dict for years and corresponding index on range slider
-date_slider_marks = dict(islice(enumerate(pd.to_datetime(months).year.astype('str')), None, None, 12)) 
+year_marks = dict(enumerate(years)) 
 # Get colorscale for towns
 towns = geodf['PLN_AREA_N']
 town_colors = px.colors.sample_colorscale('hsv', [town/(towns.count()-1) for town in range(towns.count())])
@@ -31,9 +31,9 @@ app.layout = html.Div([
         allowCross=False,
         id="date-slider-input",
         min=0,
-        max=len(months)-1,
-        marks=date_slider_marks,
-        value=[0, len(months)-1],
+        max=len(years)-1,
+        marks=year_marks,
+        value=[0, len(years)-1],
         step=1,
     ),
     html.Div(
@@ -120,9 +120,8 @@ app.layout = html.Div([
     Input(component_id='date-slider-input', component_property='value')
 )
 def update_date_display(date_slider_input):
-    # Selected start and end months in the format [YYYY-MM, YYYY-MM]
-    month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
-    date_div = f'Showing data from between {month_input[0]} and {month_input[1]}'
+    year_input = [years[date_slider_input[0]], years[date_slider_input[1]]] 
+    date_div = f'Showing data from between {year_input[0]} and {year_input[1]}'
     return date_div
 
 @callback(
@@ -139,20 +138,19 @@ def update_date_display(date_slider_input):
     ]
 )
 def update_data(statistic_input, flat_type_input, storey_range_input, date_slider_input):
-    # Selected start and end months in the format [YYYY-MM, YYYY-MM]
-    month_input = [months[date_slider_input[0]], months[date_slider_input[1]]] 
+    year_input = [years[date_slider_input[0]], years[date_slider_input[1]]] 
     
     # Apply selected filters to dataset
     flat_types_filter = df['flat_type'].isin(flat_type_input)
     storey_ranges_filter = df['storey_range'].isin(storey_range_input)
-    months_filter = pd.to_datetime(df['month']).between(pd.to_datetime(month_input[0]), pd.to_datetime(month_input[1]))
-    filtered_df = df[flat_types_filter & storey_ranges_filter & months_filter]
+    years_filter = pd.to_datetime(df['year'], format='%Y').between(pd.to_datetime(year_input[0], format='%Y'), pd.to_datetime(year_input[1], format='%Y'))
+    filtered_df = df[flat_types_filter & storey_ranges_filter & years_filter]
 
     # Group filtered data by town
     filtered_df_by_town = filtered_df.groupby(by=['town'])[statistic_input].median().reset_index().sort_values(by=statistic_input)
-    # Group filtered data by town and month
-    filtered_df_by_town_and_month = filtered_df.groupby(by=['town', 'month'])[statistic_input].median()
-    filtered_df_by_town_and_month = filtered_df_by_town_and_month.unstack().stack(dropna=False).rename(statistic_input).reset_index(level=['town', 'month']) # Fill missing months with NaN for gaps in line plot
+    # Group filtered data by town and year
+    filtered_df_by_town_and_year = filtered_df.groupby(by=['town', 'year'])[statistic_input].median()
+    filtered_df_by_town_and_year = filtered_df_by_town_and_year.unstack().stack(dropna=False).rename(statistic_input).reset_index(level=['town', 'year']) # Fill missing years with NaN for gaps in line plot
 
     # Get unavailable data by town
     all_towns = geodf['PLN_AREA_N']
@@ -163,7 +161,7 @@ def update_data(statistic_input, flat_type_input, storey_range_input, date_slide
     filtered_data = {
         'filtered_df': filtered_df.to_json(orient='split', date_format='iso'),
         'filtered_df_by_town': filtered_df_by_town.to_json(orient='split', date_format='iso'),
-        'filtered_df_by_town_and_month': filtered_df_by_town_and_month.to_json(orient='split', date_format='iso'),
+        'filtered_df_by_town_and_year': filtered_df_by_town_and_year.to_json(orient='split', date_format='iso'),
         'unavailable_df_by_town': unavailable_df_by_town.to_json(orient='split', date_format='iso')
     }
     
@@ -250,25 +248,24 @@ def update_map(filtered_data_json, statistic_input):
 def update_combined_graphs(filtered_data_json, selected_map_data, statistic_input):
     filtered_data = json.loads(filtered_data_json)
     filtered_df = pd.read_json(io.StringIO(filtered_data['filtered_df']), orient='split')
-    filtered_df_by_town_and_month = pd.read_json(io.StringIO(filtered_data['filtered_df_by_town_and_month']), orient='split')
+    filtered_df_by_town_and_year = pd.read_json(io.StringIO(filtered_data['filtered_df_by_town_and_year']), orient='split')
 
     if selected_map_data:
         town_selection = [point['location'] for point in selected_map_data['points']]
-        filtered_df_by_town_and_month = filtered_df_by_town_and_month[filtered_df_by_town_and_month['town'].isin(town_selection)]
+        filtered_df_by_town_and_year = filtered_df_by_town_and_year[filtered_df_by_town_and_year['town'].isin(town_selection)]
         filtered_df = filtered_df[filtered_df['town'].isin(town_selection)].reset_index(drop=True)
 
     # Create line plot
     compare_statistic_time_series_figure = px.line(
-        filtered_df_by_town_and_month, 
-        x='month', 
+        filtered_df_by_town_and_year, 
+        x='year', 
         y=statistic_input, 
         color='town',
         color_discrete_map=town_color_map,
         title=f'Median {statistic_input} By Town Over Time'
     )
     compare_statistic_time_series_figure.update_layout(
-        xaxis_type='category', 
-        xaxis_dtick=12,
+        xaxis_type='category',
         yaxis_title=f'Median {statistic_input}')
     compare_statistic_time_series_figure.update_traces(connectgaps=False)
     compare_statistic_time_series_graph = dcc.Graph(figure=compare_statistic_time_series_figure)
@@ -276,36 +273,35 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     # Create boxplot
     combined_statistic_time_series_figure = px.box(
         filtered_df, 
-        x='month', 
+        x='year', 
         y=statistic_input, 
         points=False,
-        color='month',
+        color='year',
         title=f'Combined {statistic_input} Over Time'
     )
-    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=12, yaxis_title=f'{statistic_input}')
+    combined_statistic_time_series_figure.update_layout(xaxis_type='category', xaxis_dtick=1, yaxis_title=f'{statistic_input}')
     combined_statistic_time_series_figure.update_traces(boxmean=True)
     combined_statistic_time_series_graph = dcc.Graph(figure=combined_statistic_time_series_figure)
 
     # Get counts for flat type categories over time
-    flat_type_counts = filtered_df.groupby(by=['month', 'flat_type']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'flat_type'])
-    flat_type_totals = filtered_df.groupby(by=['month']).size().rename('total').reset_index()
-    flat_type_counts = flat_type_counts.merge(flat_type_totals, on='month')
+    flat_type_counts = filtered_df.groupby(by=['year', 'flat_type']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['year', 'flat_type'])
+    flat_type_totals = filtered_df.groupby(by=['year']).size().rename('total').reset_index()
+    flat_type_counts = flat_type_counts.merge(flat_type_totals, on='year')
     flat_type_counts['percentage'] = round(flat_type_counts['count'] / flat_type_counts['total'] * 100, 1)
     # Create stacked area chart
-    flat_type_area_figure = px.area(flat_type_counts, x='month', y='count', color='flat_type', hover_data=['flat_type', 'month', 'count', 'total', 'percentage'])
-    flat_type_area_figure.update_layout(xaxis_type='category', xaxis_dtick=12)
+    flat_type_area_figure = px.area(flat_type_counts, x='year', y='count', color='flat_type', hover_data=['flat_type', 'year', 'count', 'total', 'percentage'])
+    flat_type_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
     flat_type_area_graph = dcc.Graph(figure=flat_type_area_figure)
 
     # Get counts for storey range categories over time
-    storey_range_counts = filtered_df.groupby(by=['month', 'storey_range']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['month', 'storey_range'])
-    storey_range_totals = filtered_df.groupby(by=['month']).size().rename('total').reset_index()
-    storey_range_counts = storey_range_counts.merge(storey_range_totals, on='month')
+    storey_range_counts = filtered_df.groupby(by=['year', 'storey_range']).size().unstack(fill_value=0).stack().rename('count').reset_index(level=['year', 'storey_range'])
+    storey_range_totals = filtered_df.groupby(by=['year']).size().rename('total').reset_index()
+    storey_range_counts = storey_range_counts.merge(storey_range_totals, on='year')
     storey_range_counts['percentage'] = round(storey_range_counts['count'] / storey_range_counts['total'] * 100, 1)
     # Create stacked area chart
-    storey_range_area_figure = px.area(storey_range_counts, x='month', y='count', color='storey_range', hover_data=['storey_range', 'month', 'count', 'total', 'percentage'])
-    storey_range_area_figure.update_layout(xaxis_type='category', xaxis_dtick=12)
+    storey_range_area_figure = px.area(storey_range_counts, x='year', y='count', color='storey_range', hover_data=['storey_range', 'year', 'count', 'total', 'percentage'])
+    storey_range_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
     storey_range_area_graph = dcc.Graph(figure=storey_range_area_figure)
-    
 
     return compare_statistic_time_series_graph, combined_statistic_time_series_graph, flat_type_area_graph, storey_range_area_graph
 
