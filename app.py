@@ -288,7 +288,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
     compare_statistic_time_series_figure.update_layout(
         xaxis_type='category',
         yaxis_title=f'Median {snake_to_title_case(statistic_input)}')
-    compare_statistic_time_series_figure.update_traces(connectgaps=False)
+    compare_statistic_time_series_figure.update_traces(connectgaps=False, mode='markers+lines')
     compare_statistic_time_series_graph = dcc.Graph(figure=compare_statistic_time_series_figure)
 
     # Create boxplot
@@ -329,6 +329,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         },
     )
     flat_type_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
+    flat_type_area_figure.update_traces(mode='markers+lines')
     flat_type_area_graph = dcc.Graph(figure=flat_type_area_figure)
 
     # Get counts for storey range categories over time
@@ -353,6 +354,7 @@ def update_combined_graphs(filtered_data_json, selected_map_data, statistic_inpu
         },
     )
     storey_range_area_figure.update_layout(xaxis_type='category', xaxis_dtick=1)
+    storey_range_area_figure.update_traces(mode='markers+lines')
     storey_range_area_graph = dcc.Graph(figure=storey_range_area_figure)
 
     return compare_statistic_time_series_graph, combined_statistic_time_series_graph, flat_type_area_graph, storey_range_area_graph
